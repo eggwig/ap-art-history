@@ -1733,7 +1733,7 @@ function attachCardEvents(card, item) {
 document.getElementById('add-btn').addEventListener('click', () => openModal(null));
 
 
-// ─── Wikipedia image loader (JSONP — bypasses CORS in iframe) ────────────────
+// ─── Wikipedia image loader (fetch REST API — works on https) ─────────────────
 function loadWikiImage(workName, artistName) {
   const imgEl      = document.getElementById('wp-img');
   const placeholder= document.getElementById('wp-img-placeholder');
@@ -1746,22 +1746,23 @@ function loadWikiImage(workName, artistName) {
   credit.textContent = '';
 
   const query = workName + (artistName && artistName !== 'Unknown' ? ' ' + artistName : '');
-  const cbName = '_wikiCb_' + Date.now();
 
-  // Clean up any previous JSONP script
-  document.querySelectorAll('script[data-wiki-jsonp]').forEach(s => s.remove());
-
-  // Step 1: search via JSONP
-  window[cbName] = function(data) {
-    delete window[cbName];
+  // Step 1: search Wikipedia
+  fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch='
+    + encodeURIComponent(query)
+    + '&format=json&srlimit=3&origin=*')
+  .then(r => r.json())
+  .then(data => {
     const hits = data.query && data.query.search;
     if (!hits || hits.length === 0) { placeholder.textContent = 'No image found'; return; }
-
     const pageTitle = hits[0].title;
-    const cb2 = '_wikiCb2_' + Date.now();
 
-    window[cb2] = function(d2) {
-      delete window[cb2];
+    // Step 2: get thumbnail
+    return fetch('https://en.wikipedia.org/w/api.php?action=query&titles='
+      + encodeURIComponent(pageTitle)
+      + '&prop=pageimages&pithumbsize=600&format=json&origin=*')
+    .then(r => r.json())
+    .then(d2 => {
       const pages = d2.query && d2.query.pages;
       const page  = pages ? Object.values(pages)[0] : null;
       const thumb = page && page.thumbnail && page.thumbnail.source;
@@ -1776,24 +1777,9 @@ function loadWikiImage(workName, artistName) {
       } else {
         placeholder.textContent = 'No image found';
       }
-    };
-
-    const s2 = document.createElement('script');
-    s2.setAttribute('data-wiki-jsonp', '1');
-    s2.src = 'https://en.wikipedia.org/w/api.php?action=query&titles='
-      + encodeURIComponent(pageTitle)
-      + '&prop=pageimages&pithumbsize=600&format=json&callback=' + cb2;
-    document.head.appendChild(s2);
-    s2.onerror = () => { placeholder.textContent = 'Image unavailable'; };
-  };
-
-  const s1 = document.createElement('script');
-  s1.setAttribute('data-wiki-jsonp', '1');
-  s1.src = 'https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch='
-    + encodeURIComponent(query)
-    + '&format=json&srlimit=3&callback=' + cbName;
-  document.head.appendChild(s1);
-  s1.onerror = () => { placeholder.textContent = 'Image unavailable'; };
+    });
+  })
+  .catch(() => { placeholder.textContent = 'Image unavailable'; });
 }
 
 // ─── Work detail popup ────────────────────────────────────────────────────────
