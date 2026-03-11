@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>艺术史时间轴</title>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Open+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Ribeye&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #fde8f0;
+    --bg2: #fcd6e6;
+    --card-bg: #ffffff;
+    --ink: #3a2230;
+    --ink-light: #7a5a6a;
+    --pink: #f4a7c0;
+    --pink-dark: #e8749c;
+    --red: #e8374a;
+    --red-light: #f06070;
+    --cream: #fff5f8;
+    --border: #f0b8cc;
+    --border-active: #e8749c;
+    --line-color: #e8749c;
+    --shadow: rgba(232, 116, 156, 0.18);
+  }
+
+  body {
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(255,192,220,0.45) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(255,210,230,0.4) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(253,220,235,0.3) 0%, transparent 70%);
+    font-family: 'ZCOOL KuaiLe', 'Open Sans', sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    cursor: default;
+    user-select: none;
+  }
+
+  /* Subtle dot pattern */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(232,116,156,0.12) 1px, transparent 1px);
+    background-size: 28px 28px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #canvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  #world {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+  }
+
+  /* Header */
+  #header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 18px 36px 14px;
+    background: linear-gradient(to bottom, rgba(253,232,240,0.97) 70%, transparent);
+    pointer-events: none;
+  }
+
+  #header h1 {
+    display: none;
+  }
+
+  #header h1::before {
+    content: '🎨 ';
+    font-style: normal;
+  }
+
+  #header p {
+    font-size: 11px;
+    color: var(--pink-dark);
+    opacity: 0.55;
+    margin-top: 2px;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+
+  /* Year label */
+  .year-label {
+    position: absolute;
+    transform: translateX(-50%);
+    font-family: 'Open Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--pink-dark);
+    opacity: 0.7;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    pointer-events: none;
+    text-align: center;
+  }
+
+  /* Art cards */
+  .art-card {
+    position: absolute;
+    width: 120px;
+    background: var(--card-bg);
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    cursor: grab;
+    z-index: 50;
+    transition: width 0.32s cubic-bezier(.4,0,.2,1),
+                box-shadow 0.2s,
+                border-color 0.2s,
+                transform 0.15s;
+    box-shadow: 0 3px 12px var(--shadow), 0 1px 3px rgba(232,116,156,0.1);
+    text-align: center;
+  }
+
+  .art-card:hover:not(.expanded):not(.dragging) {
+    border-color: var(--border-active);
+    box-shadow: 0 6px 20px rgba(232,116,156,0.25);
+    transform: translateY(-2px);
+    z-index: 60;
+  }
+
+  .art-card.expanded {
+    width: 220px;
+    border-color: var(--pink-dark);
+    box-shadow: 0 8px 28px rgba(232,116,156,0.3), 0 2px 8px rgba(232,116,156,0.15);
+    z-index: 150;
+  }
+
+  .art-card.dragging {
+    cursor: grabbing !important;
+    box-shadow: 0 14px 36px rgba(232,116,156,0.35);
+    z-index: 200;
+    transition: none;
+    transform: rotate(1.5deg) scale(1.03);
+  }
+
+  /* Search highlight */
+  .art-card.search-match {
+    border-color: #e8374a !important;
+    box-shadow: 0 0 0 3px rgba(232,55,74,0.25), 0 6px 20px rgba(232,55,74,0.2) !important;
+    z-index: 80;
+  }
+
+  .art-card.search-dim {
+    opacity: 0.25;
+    filter: grayscale(0.5);
+  }
+
+  .card-color-bar {
+    height: 5px;
+    width: 100%;
+    border-radius: 12px 12px 0 0;
+  }
+
+  /* Collapsed view */
+  .card-collapsed {
+    padding: 7px 10px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+  }
+
+  .c-period {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--pink-dark);
+    opacity: 0.7;
+    text-align: center;
+  }
+
+  .c-title {
+    font-family: 'ZCOOL KuaiLe', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+  }
+
+  .c-title-en {
+    font-size: 9px;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--ink-light);
+    font-family: 'Open Sans', sans-serif;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.75;
+    text-align: center;
+  }
+
+  /* Expanded detail */
+  .card-detail {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s cubic-bezier(.4,0,.2,1),
+                opacity 0.25s ease 0.08s,
+                padding 0.35s;
+    padding: 0 10px;
+    text-align: center;
+  }
+
+  .art-card.expanded .card-detail {
+    max-height: 200px;
+    opacity: 1;
+    padding: 0 10px 12px;
+  }
+
+  .d-divider {
+    height: 1.5px;
+    background: linear-gradient(to right, transparent, var(--pink), transparent);
+    border-radius: 2px;
+    margin-bottom: 7px;
+    opacity: 0.5;
+  }
+
+  .d-desc {
+    font-family: 'ZCOOL KuaiLe', 'Open Sans', sans-serif;
+    font-size: 11px;
+    line-height: 1.65;
+    color: var(--ink-light);
+    margin-bottom: 7px;
+    text-align: center;
+  }
+
+  .d-artists {
+    padding-top: 6px;
+    border-top: 1.5px dashed rgba(232,116,156,0.35);
+    font-family: 'Open Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--pink-dark);
+    opacity: 0.85;
+    letter-spacing: 0.01em;
+    text-align: center;
+  }
+
+  /* Close × */
+  .card-close {
+    display: none;
+    position: absolute;
+    top: 6px; right: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--pink-dark);
+    opacity: 0.45;
+    cursor: pointer;
+    line-height: 1;
+    padding: 1px 3px;
+    z-index: 10;
+    border-radius: 50%;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .card-close:hover { opacity: 1; background: var(--bg2); }
+  .art-card.expanded .card-close { display: block; }
+
+  /* ── Search bar ── */
+  #search-bar {
+    position: fixed;
+    top: 18px;
+    right: 20px;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.88);
+    border: 2px solid var(--border);
+    border-radius: 24px;
+    padding: 5px 10px 5px 14px;
+    box-shadow: 0 3px 14px rgba(232,116,156,0.18);
+    backdrop-filter: blur(8px);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  #search-bar:focus-within {
+    border-color: var(--pink-dark);
+    box-shadow: 0 4px 18px rgba(232,116,156,0.28);
+  }
+  #search-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: 'ZCOOL KuaiLe', 'Open Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--ink);
+    width: 140px;
+    caret-color: var(--pink-dark);
+  }
+  #search-input::placeholder { color: rgba(232,116,156,0.55); }
+  #search-clear {
+    font-size: 14px;
+    color: var(--pink-dark);
+    opacity: 0.4;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 2px;
+    transition: opacity 0.15s;
+    display: none;
+  }
+  #search-clear:hover { opacity: 1; }
+  #search-icon { font-size: 13px; opacity: 0.5; }
+  #search-count {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--pink-dark);
+    background: var(--bg2);
+    border-radius: 10px;
+    padding: 1px 7px;
+    display: none;
+  }
+
+  /* ── Zoom controls ── */
+  #zoom-controls {
+    position: fixed;
+    bottom: 70px;
+    right: 20px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+  .zoom-btn {
+    width: 36px;
+    height: 36px;
+    background: rgba(255,255,255,0.9);
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--pink-dark);
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(232,116,156,0.18);
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    line-height: 1;
+    user-select: none;
+    backdrop-filter: blur(6px);
+    position: relative;
+  }
+  .zoom-btn:hover {
+    background: var(--bg2);
+    border-color: var(--pink-dark);
+    transform: scale(1.08);
+  }
+  .zoom-btn:active { transform: scale(0.95); }
+  .zoom-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    right: 46px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(58,34,48,0.82);
+    color: white;
+    font-family: 'ZCOOL KuaiLe', sans-serif;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s;
+  }
+  .zoom-btn:hover::after { opacity: 1; }
+  #zoom-label {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--pink-dark);
+    opacity: 0.6;
+    text-align: center;
+  }
+
+  /* Hint */
+  #hint {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'ZCOOL KuaiLe', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--pink-dark);
+    opacity: 0.55;
+    letter-spacing: 0.05em;
+    z-index: 100;
+    pointer-events: none;
+    background: rgba(255,255,255,0.65);
+    padding: 5px 18px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    backdrop-filter: blur(6px);
+    white-space: nowrap;
+  }
+
+  /* Pan cursor */
+  body.panning { cursor: grabbing !important; }
+  body.panning .art-card { cursor: grabbing !important; }
+
+  /* Giant background watermark */
+  #bg-text {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Ribeye', cursive;
+    font-size: clamp(80px, 14vw, 180px);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: rgba(255,255,255,0.2);
+    -webkit-text-stroke: 2.5px rgba(255,255,255,0.4);
+    pointer-events: none;
+    z-index: 0;
+    user-select: none;
+  }
+
+  /* ── Add button ── */
+  #add-btn {
+    position: fixed;
+    bottom: 24px;
+    left: 20px;
+    z-index: 200;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--pink-dark);
+    border: none;
+    color: white;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(232,116,156,0.45);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+    font-family: sans-serif;
+  }
+  #add-btn:hover { transform: scale(1.1); box-shadow: 0 6px 22px rgba(232,116,156,0.55); }
+  #add-btn:active { transform: scale(0.95); }
+
+  /* Tooltip */
+  #add-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 54px;
+    bottom: 50%;
+    transform: translateY(50%);
+    background: rgba(58,34,48,0.82);
+    color: white;
+    font-family: 'ZCOOL KuaiLe', sans-serif;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s;
+  }
+  #add-btn:hover::after { opacity: 1; }
+
+  /* ── Context menu ── */
+  #ctx-menu {
+    position: fixed;
+    z-index: 500;
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(232,116,156,0.22);
+    overflow: hidden;
+    display: none;
+    min-width: 110px;
+  }
+  .ctx-item {
+    padding: 10px 16px;
+    font-family: 'ZCOOL KuaiLe', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.12s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ctx-item:hover { background: var(--bg2); }
+  .ctx-item.danger { color: #e8374a; }
+  .ctx-item + .ctx-item { border-top: 1px solid var(--border); }
+
+  /* ── Modal overlay ── */
+  #modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(58,34,48,0.35);
+    backdrop-filter: blur(4px);
+    z-index: 400;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+  #modal {
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 28px 22px;
+    width: min(460px, 92vw);
+    box-shadow: 0 16px 48px rgba(232,116,156,0.25);
+    position: relative;
+  }
+  #modal h2 {
+    font-family: 'ZCOOL KuaiLe', sans-serif;
+    font-size: 18px;
+    color: var(--pink-dark);
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 13px; }
+  .form-row label {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--pink-dark); opacity: 0.7;
+  }
+  .form-row input, .form-row textarea, .form-row select {
+    border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 7px 10px;
+    font-family: 'ZCOOL KuaiLe', 'Open Sans', sans-serif;
+    font-size: 13px; color: var(--ink); outline: none;
+    transition: border-color 0.15s; background: #fff; width: 100%;
+  }
+  .form-row input:focus, .form-row textarea:focus { border-color: var(--pink-dark); }
+  .form-row textarea { resize: vertical; min-height: 58px; }
+  .form-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  .btn-cancel {
+    padding: 8px 20px; border: 2px solid var(--border); border-radius: 20px;
+    background: white; font-family: 'ZCOOL KuaiLe', sans-serif;
+    font-size: 13px; color: var(--ink-light); cursor: pointer; transition: border-color 0.15s;
+  }
+  .btn-cancel:hover { border-color: var(--pink-dark); }
+  .btn-save {
+    padding: 8px 24px; border: none; border-radius: 20px;
+    background: var(--pink-dark); font-family: 'ZCOOL KuaiLe', sans-serif;
+    font-size: 13px; color: white; cursor: pointer;
+    box-shadow: 0 3px 12px rgba(232,116,156,0.35);
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  .btn-save:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(232,116,156,0.45); }
+  #modal-close {
+    position: absolute; top: 12px; right: 16px;
+    font-size: 20px; color: var(--pink-dark); opacity: 0.4;
+    cursor: pointer; transition: opacity 0.15s; line-height: 1;
+  }
+  #modal-close:hover { opacity: 1; }
+  .color-swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .swatch {
+    width: 22px; height: 22px; border-radius: 50%;
+    cursor: pointer; border: 2.5px solid transparent;
+    transition: transform 0.1s, border-color 0.1s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.selected { border-color: var(--ink); transform: scale(1.18); }
+
+  /* ── Works list inside card ── */
+  .c-count {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 9px; font-weight: 700;
+    color: var(--pink-dark); opacity: 0.6;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .art-card.expanded { width: 260px; }
+
+  .d-works-list {
+    display: flex; flex-direction: column; gap: 1px;
+    max-height: 220px; overflow-y: auto;
+    margin-top: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--pink) transparent;
+  }
+  .d-work-item {
+    display: flex; flex-direction: column;
+    padding: 5px 8px; border-radius: 7px;
+    cursor: pointer; transition: background 0.12s;
+    text-align: left;
+  }
+  .d-work-item:hover { background: var(--bg2); }
+  .d-work-name {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 10px; font-weight: 600;
+    color: var(--ink); line-height: 1.3;
+  }
+  .d-work-artist {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 9px; color: var(--ink-light);
+    opacity: 0.7; margin-top: 1px;
+  }
+
+  /* ── Work detail popup ── */
+  #work-popup {
+    position: fixed; inset: 0;
+    background: rgba(58,34,48,0.4);
+    backdrop-filter: blur(5px);
+    z-index: 600;
+    display: none; align-items: center; justify-content: center;
+  }
+  #work-popup.open { display: flex; }
+  #work-popup-inner {
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    width: min(480px, 92vw);
+    box-shadow: 0 20px 60px rgba(232,116,156,0.25);
+    position: relative;
+    animation: popIn 0.2s ease;
+  }
+  @keyframes popIn {
+    from { transform: scale(0.94); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+  }
+  #work-popup-close {
+    position: absolute; top: 14px; right: 18px;
+    font-size: 20px; color: var(--pink-dark); opacity: 0.4;
+    cursor: pointer; transition: opacity 0.15s; line-height: 1;
+  }
+  #work-popup-close:hover { opacity: 1; }
+  .wp-period-tag {
+    display: inline-block;
+    font-family: 'Open Sans', sans-serif;
+    font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: white; border-radius: 10px;
+    padding: 3px 10px; margin-bottom: 12px;
+  }
+  .wp-title {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 17px; font-weight: 800;
+    color: var(--ink); line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .wp-artist {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 12px; color: var(--ink-light);
+    margin-bottom: 12px; font-style: italic;
+  }
+  .wp-meta {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+  }
+  .wp-meta-chip {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 10px; font-weight: 600;
+    background: var(--bg2); border-radius: 8px;
+    padding: 4px 10px; color: var(--ink-light);
+  }
+  .wp-notes {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 12px; line-height: 1.7;
+    color: var(--ink-light);
+    border-top: 1.5px dashed rgba(232,116,156,0.3);
+    padding-top: 12px; margin-top: 4px;
+  }
+
+  /* ── Work popup image ── */
+  #wp-img-wrap {
+    width: 100%; margin-bottom: 14px;
+    border-radius: 12px; overflow: hidden;
+    background: var(--bg2);
+    min-height: 60px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    position: relative;
+  }
+  #wp-img-placeholder {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 11px; color: var(--ink-light);
+    opacity: 0.5; padding: 18px;
+  }
+  #wp-img {
+    width: 100%; max-height: 260px;
+    object-fit: contain;
+    background: #f8f0f4;
+    border-radius: 12px;
+  }
+  #wp-img-credit {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 9px; color: var(--ink-light);
+    opacity: 0.5; padding: 4px 8px;
+    text-align: right; width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<div id="bg-text">Art History</div>
+
+<div id="header">
+  <h1>艺术史 · Art History</h1>
+  <p>文艺复兴 → 波普艺术 · Renaissance to Pop Art</p>
+</div>
+
+<!-- Search -->
+<div id="search-bar">
+  <span id="search-icon">🔍</span>
+  <input id="search-input" type="text" placeholder="搜索艺术家、流派…" autocomplete="off" />
+  <span id="search-count"></span>
+  <span id="search-clear">×</span>
+</div>
+
+<!-- Zoom -->
+<div id="zoom-controls">
+  <button class="zoom-btn" id="zoom-in" data-tooltip="放大">+</button>
+  <div id="zoom-label">100%</div>
+  <button class="zoom-btn" id="zoom-out" data-tooltip="缩小">−</button>
+</div>
+
+<canvas id="canvas"></canvas>
+<div id="world"></div>
+
+<div id="hint">点击卡片展开介绍 · 拖动移动 · 滚轮平移</div>
+<div id="scroll-hint"></div>
+
+<!-- Add button -->
+<button id="add-btn" data-tooltip="添加新流派卡片">+</button>
+
+<!-- Context menu -->
+<div id="ctx-menu">
+  <div class="ctx-item" id="ctx-edit">✏️ 编辑</div>
+  <div class="ctx-item danger" id="ctx-delete">🗑️ 删除</div>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay">
+  <div id="modal">
+    <span id="modal-close">×</span>
+    <h2 id="modal-title">添加流派</h2>
+    <div class="form-two">
+      <div class="form-row"><label>中文名称</label><input id="f-title" placeholder="如：印象派" /></div>
+      <div class="form-row"><label>English Name</label><input id="f-titleEn" placeholder="e.g. Impressionism" /></div>
+    </div>
+    <div class="form-two">
+      <div class="form-row"><label>年份</label><input id="f-year" type="number" placeholder="如：1874" /></div>
+      <div class="form-row"><label>时期</label><input id="f-period" placeholder="如：1874 – 1890s" /></div>
+    </div>
+    <div class="form-row"><label>简介</label><textarea id="f-desc" placeholder="一两句话描述这个流派的特点…"></textarea></div>
+    <div class="form-row"><label>代表艺术家（用 · 分隔）</label><input id="f-artists" placeholder="如：Monet · Renoir · Degas" /></div>
+    <div class="form-row"><label>卡片颜色</label><div class="color-swatches" id="color-swatches"></div></div>
+    <div class="form-row"><label>位置</label>
+      <select id="f-side"><option value="top">时间轴上方</option><option value="bottom">时间轴下方</option></select>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" id="modal-cancel">取消</button>
+      <button class="btn-save" id="modal-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Work detail popup -->
+<div id="work-popup">
+  <div id="work-popup-inner">
+    <span id="work-popup-close">×</span>
+    <div class="wp-period-tag" id="wp-tag">Unit</div>
+    <div id="wp-img-wrap">
+      <div id="wp-img-placeholder">🔍 loading image…</div>
+      <img id="wp-img" src="" alt="" style="display:none"/>
+      <div id="wp-img-credit"></div>
+    </div>
+    <div class="wp-title" id="wp-title">Work Title</div>
+    <div class="wp-artist" id="wp-artist">Artist</div>
+    <div class="wp-meta">
+      <div class="wp-meta-chip" id="wp-date">Date</div>
+      <div class="wp-meta-chip" id="wp-medium">Medium</div>
+    </div>
+    <div class="wp-meta-chip" id="wp-location" style="display:none;margin-bottom:10px;font-size:10px;color:var(--ink-light)"></div>
+    <div class="wp-notes" id="wp-notes">Notes</div>
+    <a id="wp-smarthistory-btn" href="#" target="_blank" rel="noopener" style="display:none; margin-top:14px; align-items:center; gap:6px; padding:8px 16px; background:#c0392b; color:#fff; border-radius:20px; font-size:13px; font-family:Open Sans,sans-serif; text-decoration:none; font-weight:600; letter-spacing:0.3px;">
+      📖 Read on Smarthistory
+    </a>
+  </div>
+</div>
+
+<script>
+
+const DATA = [
+  // ── Unit 1: Global Prehistory ──────────────────────────────────────────────
+  {
+    id: "prehistory", year: -25000, label: "30,000\u2013500 BCE",
+    title: "\u5168\u7403\u53f2\u524d", titleEn: "Global Prehistory",
+    period: "30,000 \u2013 500 BCE",
+    desc: "The earliest human mark-making: portable figurines, cave paintings, and megalithic structures reveal ritual, belief, and symbolic thought.",
+    color: "#8B7355", side: "top", offset: -165,
+    works: [
+      { id:"w1",  name: "Apollo 11 Stones", artist: "Unknown", date: "c. 25,500\u201325,300 BCE", medium: "Charcoal on stone", location: "Namibia, Africa", notes: "Among the oldest known representational art in Africa." , smarthistoryUrl: "https://smarthistory.org/apollo-11-cave-stones/"},
+      { id:"w2",  name: "Hall of Bulls, Lascaux", artist: "Unknown", date: "c. 15,000\u201313,000 BCE", medium: "Charcoal, ochre on limestone", location: "Lascaux, France", notes: "Composite/twisted perspective: bodies in profile, horns frontal. Overlapping figures." , smarthistoryUrl: "https://smarthistory.org/hall-of-bulls-lascaux/"},
+      { id:"w3",  name: "Camelid Sacrum in the Shape of a Canine", artist: "Unknown", date: "c. 14,000\u20137,000 BCE", medium: "Bone", location: "Tequixquiac, Central Mexico", notes: "One of the earliest known artworks from the Americas." , smarthistoryUrl: "https://smarthistory.org/camelid-sacrum-in-the-shape-of-a-canine/"},
+      { id:"w4",  name: "Running Horned Woman", artist: "Unknown", date: "c. 6,000\u20134,000 BCE", medium: "Pigment on rock", location: "Tassili n\"Ajjer, Algeria", notes: "Ritualistic figure in running motion with horns and body decorations." , smarthistoryUrl: "https://smarthistory.org/running-horned-woman-tassili-najjer-algeria/"},
+      { id:"w5",  name: "Bushel with Ibex Motifs", artist: "Unknown", date: "c. 4,200\u20133,500 BCE", medium: "Painted terra cotta", location: "Susa, Iran", notes: "Ibex horns exaggerated into concentric circles. Organized in registers." , smarthistoryUrl: "https://smarthistory.org/bushel-with-ibex-motifs/"},
+      { id:"w6",  name: "Anthropomorphic Stele", artist: "Unknown", date: "c. 4th millennium BCE", medium: "Sandstone", location: "Ha\"il, Saudi Arabia", notes: "One of the earliest artworks from the Arabian Peninsula." , smarthistoryUrl: "https://smarthistory.org/anthropomorphic-stele/"},
+      { id:"w7",  name: "Jade Cong", artist: "Unknown", date: "c. 3,300\u20132,200 BCE", medium: "Jade", location: "Liangzhu, China", notes: "Square outer shape + circular inner bore may symbolize earth and heaven." , smarthistoryUrl: "https://smarthistory.org/jade-cong/"},
+      { id:"w8",  name: "Stonehenge", artist: "Unknown", date: "c. 2,500\u20131,600 BCE", medium: "Bluestone and sarsen sandstone", location: "Wiltshire, UK", notes: "Post-and-lintel megalithic construction. Aligned with solstices." , smarthistoryUrl: "https://smarthistory.org/stonehenge/"},
+      { id:"w9",  name: "Seated Woman of Catalhoyuk", artist: "Unknown", date: "c. 6,000 BCE", medium: "Fired terra cotta", location: "Catalhoyuk, Turkey", notes: "Possibly a fertility goddess. Seated between two felines." },
+      { id:"w10", name: "Tlatilco Female Figurine", artist: "Unknown", date: "c. 1,200\u2013900 BCE", medium: "Ceramic", location: "Central Mexico", notes: "Dual-faced figurine; exaggerated hips. Burial offering." },
+      { id:"w11", name: "Terra Cotta Fragment (Lapita)", artist: "Unknown", date: "c. 1,000 BCE", medium: "Incised terra cotta", location: "Reef Islands, Solomon Islands", notes: "Hallmark of the Lapita people, ancestors of modern Polynesians." }
+    ]
+  },
+
+  // ── Unit 2: Ancient Near East & Egypt ──────────────────────────────────────
+  {
+    id: "ancient-near-east", year: -3500, label: "3500\u2013500 BCE",
+    title: "\u53e4\u4ee3\u8fd1\u4e1c", titleEn: "Ancient Near East",
+    period: "3,500 \u2013 330 BCE",
+    desc: "Mesopotamian city-states, Egyptian pharaohs, and Persian kings produced some of the earliest writing, monumental architecture, and palace art.",
+    color: "#C4956A", side: "bottom", offset: 165,
+    works: [
+      { id:"w12", name: "White Temple and Its Ziggurat", artist: "Unknown", date: "c. 3,500–3,000 BCE", medium: "Mud brick", location: "Uruk (Warka), Iraq — Sumerian", notes: `**Form/Plan:** Rectangular (17.5 × 22.3 m), corners oriented to cardinal points. Tripartite plan: long central hall flanked by side rooms — a typical Uruk "high temple" (Hochtempel). Three entrances, none facing the ziggurat ramp directly — visitors walked around the exterior before entering via a "bent axis" approach (turning 90° to face the altar). **Interior:** North end had a podium accessible by staircase and an altar with a fire-stained surface. Corner chambers contained staircases; middle chambers had wooden wall shelves and pivot-stone cavities suggesting solid doors. **Finds:** 19 gypsum tablets with cylinder seal impressions recording temple accounting. Foundation deposit of leopard and lion bones in the eastern corner (ritually buried foundation deposits are common in ancient Near Eastern architecture). **Terrace:** Broad flat terrace to the north with a large fire pit (2.2 × 2.7 m) and a loop cut from a boulder. Bitumen-coated conduits ran from the terrace edges into the temple — likely channeling ritual liquids to collect in a central pit.` , smarthistoryUrl: "https://smarthistory.org/white-temple-and-ziggurat/"},
+      { id:"w13", name: "The Narmer Palette", artist: "Unknown", date: "c. 3,100 BCE", medium: "Siltstone", location: "Ancient Egypt \u2014 Predynastic Period", notes: "Ceremonial palette depicting unification of Upper and Lower Egypt. Hierarchical scale." , smarthistoryUrl: "https://smarthistory.org/the-palette-of-narmer/"},
+      { id:"w14", name: "Standing Votive Figures", artist: "Unknown", date: "c. 2,700 BCE", medium: "Gypsum alabaster", location: "Ancient Near East, Sumerian", notes: "Placed in temples as stand-ins for worshippers offering perpetual prayers." , smarthistoryUrl: "https://smarthistory.org/votive-figures-from-the-square-temple/"},
+      { id:"w15", name: "Seated Scribe", artist: "Unknown", date: "c. 2,620\u20132,500 BCE", medium: "Painted limestone", location: "Ancient Egypt \u2014 Old Kingdom", notes: "Funerary statue ensuring eternal life. Represents the important social class of scribes." , smarthistoryUrl: "https://smarthistory.org/seated-scribe/"},
+      { id:"w16", name: "The Standard of Ur", artist: "Unknown", date: "c. 2,600\u20132,400 BCE", medium: "Wood inlaid with shell, lapis lazuli, red limestone", location: "Ancient Near East, Sumerian", notes: "Ceremonial object depicting scenes of war and peace. Symbolizes royal power." , smarthistoryUrl: "https://smarthistory.org/standard-of-ur/"},
+      { id:"w17", name: "Great Sphinx and Pyramid of Khafre", artist: "Unknown", date: "c. 2,550 BCE", medium: "Limestone", location: "Giza, Ancient Egypt", notes: "Guardian for the tomb complex. Body of a lion, head of a pharaoh." , smarthistoryUrl: "https://smarthistory.org/great-sphinx-giza/"},
+      { id:"w17b", name: "Khafre Enthroned", artist: "Unknown", date: "c. 2,520\u20132,494 BCE", medium: "Diorite", location: "Ancient Egypt \u2014 Old Kingdom", notes: "Funerary statue as permanent home for Pharaoh Khafre\"s ka (soul). Idealized and compact." , smarthistoryUrl: "https://smarthistory.org/khafre-enthroned/"},
+      { id:"w18", name: "Stele of Hammurabi", artist: "Unknown", date: "c. 1,792\u20131,750 BCE", medium: "Basalt", location: "Ancient Near East, Babylonian", notes: "Inscribed with the Law Code of Hammurabi. Relief at top shows divine origin of law." , smarthistoryUrl: "https://smarthistory.org/stele-of-hammurabi/"},
+      { id:"w19", name: "Temple of Amun-Ra, Karnak", artist: "Unknown", date: "c. 1,550\u20131,295 BCE", medium: "Sandstone, mud brick", location: "Ancient Egypt \u2014 New Kingdom", notes: "Massive religious complex for chief god Amun-Ra. Hypostyle Hall with 134 columns." , smarthistoryUrl: "https://smarthistory.org/temple-of-amun-re-and-hypostyle-hall/"},
+      { id:"w21", name: "Mortuary Temple of Hatshepsut", artist: "Senenmut (attr.)", date: "c. 1,479\u20131,458 BCE", medium: "Sandstone", location: "Deir el-Bahri, near Luxor \u2014 New Kingdom", notes: "Built for Queen Hatshepsut\"s burial and rituals. Three terraces blend with cliff." , smarthistoryUrl: "https://smarthistory.org/mortuary-temple-of-hatshepsut/"},
+      { id:"w21b", name: "Kneeling Statue of Hatshepsut", artist: "Unknown", date: "c. 1,479\u20131,458 BCE", medium: "Red granite", location: "New Kingdom, Ancient Egypt", notes: "Wears male pharaonic attire including nemes headdress and false beard." , smarthistoryUrl: "https://smarthistory.org/kneeling-statue-of-hatshepsut/"},
+      { id:"w22", name: "Akhenaton, Nefertiti, and Three Daughters", artist: "Unknown", date: "c. 1,353\u20131,336 BCE", medium: "Limestone relief", location: "Amarna, Egypt \u2014 Amarna Period", notes: "Private devotional piece. Amarna style: elongated heads, slender limbs." , smarthistoryUrl: "https://smarthistory.org/akhenaten-nefertiti-and-three-daughters/"},
+      { id:"w23", name: "Tutankhamun\"s Innermost Coffin", artist: "Unknown", date: "c. 1,323 BCE", medium: "Gold with enamel and semiprecious stone inlays", location: "Thebes, Egypt \u2014 New Kingdom", notes: "Innermost of three nested coffins; over 240 lbs of solid gold." , smarthistoryUrl: "https://smarthistory.org/tutankhamuns-innermost-coffin/"},
+      { id:"w24", name: "Last Judgment of Hu-Nefer", artist: "Unknown", date: "c. 1,275 BCE", medium: "Painted papyrus scroll", location: "Thebes, Egypt \u2014 New Kingdom", notes: "Book of the Dead scroll. Central scene: Weighing of the Heart ceremony." , smarthistoryUrl: "https://smarthistory.org/last-judgment-of-hu-nefer/"},
+      { id:"w25", name: "Lamassu from the Citadel of Sargon II", artist: "Unknown", date: "c. 721\u2013705 BCE", medium: "Alabaster", location: "Dur Sharrukin (Khorsabad), Iraq \u2014 Neo-Assyrian", notes: "Colossal guardian figures at palace entrances. Human head + lion body + eagle wings. Five legs." , smarthistoryUrl: "https://smarthistory.org/lamassu-from-the-citadel-of-sargon-ii/"}
+    ]
+  },
+
+  // ── Unit 3: Ancient Greece & Rome ──────────────────────────────────────────
+  {
+    id: "ancient-greece", year: -700, label: "700 BCE\u20131 CE",
+    title: "\u53e4\u5e0c\u814a", titleEn: "Ancient Greece & Rome",
+    period: "700 BCE \u2013 337 CE",
+    desc: "Greek art evolves from rigid Archaic kouroi to Classical idealism and Hellenistic drama; Roman art adapts the tradition across an empire.",
+    color: "#7B9EA6", side: "top", offset: -165,
+    works: [
+      { id:"g1",  name: "Anavysos Kouros", artist: "Unknown", date: "c. 530 BCE", medium: "Marble", location: "Anavysos, Greece \u2014 Archaic Period", notes: "Life-size standing male youth used as a grave marker. Archaic smile and rigid frontal pose." , smarthistoryUrl: "https://smarthistory.org/anavysos-kouros/"},
+      { id:"g2",  name: "Peplos Kore", artist: "Unknown", date: "c. 530 BCE", medium: "Marble with traces of paint", location: "Acropolis, Athens \u2014 Archaic Period", notes: "Female votive statue dedicated to Athena. Named after the peplos (wool garment) she wears." , smarthistoryUrl: "https://smarthistory.org/peplos-kore/"},
+      { id:"g3",  name: "Sarcophagus of the Spouses", artist: "Unknown", date: "c. 520 BCE", medium: "Terra cotta", location: "Cerveteri (Caere), Etruria, Italy", notes: "Etruscan funerary urn depicting a husband and wife reclining at a banquet." , smarthistoryUrl: "https://smarthistory.org/sarcophagus-of-the-spouses/"},
+      { id:"g4",  name: "Audience Hall (Apadana), Persepolis", artist: "Unknown", date: "c. 520\u2013465 BCE", medium: "Limestone", location: "Persepolis, Iran \u2014 Achaemenid Persian", notes: "Ceremonial hall for receiving delegations. Relief carvings of tribute-bearers." , smarthistoryUrl: "https://smarthistory.org/audience-hall-apadana-of-darius-and-xerxes/"},
+      { id:"g5",  name: "Niobides Krater", artist: "Niobid Painter", date: "c. 460\u2013450 BCE", medium: "Ceramic, red-figure technique", location: "Found in Etruria \u2014 Classical Greek", notes: "Large red-figure vessel depicting the slaughter of the Niobids by Apollo and Artemis." , smarthistoryUrl: "https://smarthistory.org/niobides-krater/"},
+      { id:"g6",  name: "Doryphoros (Spear Bearer)", artist: "Polykleitos", date: "c. 450\u2013440 BCE", medium: "Marble (Roman copy)", location: "Classical Greece", notes: "Embodies the Canon of ideal human proportions. Contrapposto stance." , smarthistoryUrl: "https://smarthistory.org/doryphoros/"},
+      { id:"g7",  name: "Acropolis, Athens (Parthenon)", artist: "Iktinos & Kallikrates; sculpture by Pheidias", date: "c. 447\u2013432 BCE", medium: "Marble", location: "Athens, Greece \u2014 Classical Period", notes: "Temple dedicated to Athena Parthenos, patron goddess of Athens." , smarthistoryUrl: "https://smarthistory.org/the-parthenon/"},
+      { id:"g8",  name: "Grave Stele of Hegeso", artist: "Kallimachos (attr.)", date: "c. 410 BCE", medium: "Marble", location: "Kerameikos, Athens \u2014 Classical Period", notes: "Funerary relief showing a seated woman examining jewelry from a box held by her servant." , smarthistoryUrl: "https://smarthistory.org/grave-stele-of-hegeso/"},
+      { id:"g9",  name: "Winged Victory of Samothrace", artist: "Unknown", date: "c. 190 BCE", medium: "Marble", location: "Island of Samothrace \u2014 Hellenistic Period", notes: "Nike alighting on the prow of a ship. Wind-blown drapery captures motion." , smarthistoryUrl: "https://smarthistory.org/winged-victory-of-samothrace/"},
+      { id:"g10", name: "Seated Boxer", artist: "Unknown", date: "c. 100\u201350 BCE", medium: "Bronze", location: "Rome (found) \u2014 Hellenistic Greek", notes: "Battered, exhausted boxer resting between bouts. Realistic depiction of a non-idealized athlete." , smarthistoryUrl: "https://smarthistory.org/boxer-at-rest/"},
+      { id:"g11", name: "Alexander Mosaic", artist: "Unknown", date: "c. 100 BCE", medium: "Mosaic (tesserae)", location: "Roman copy of Greek original", notes: "Depicts Alexander the Great defeating Darius III at the Battle of Issus." , smarthistoryUrl: "https://smarthistory.org/battle-of-issus-mosaic/"},
+      { id:"g12", name: "Augustus of Prima Porta", artist: "Unknown", date: "c. early 1st century CE", medium: "Marble", location: "Villa of Livia, Rome \u2014 Early Imperial Roman", notes: "Idealized portrait of Emperor Augustus in military dress. Raised arm in adlocutio gesture." , smarthistoryUrl: "https://smarthistory.org/augustus-of-prima-porta/"},
+      { id:"g13", name: "Colosseum (Flavian Amphitheater)", artist: "Unknown", date: "70\u201380 CE", medium: "Concrete, stone, brick", location: "Rome \u2014 Flavian Dynasty", notes: "Largest amphitheater in the Roman world; held 50,000\u201380,000 spectators." , smarthistoryUrl: "https://smarthistory.org/colosseum/"},
+      { id:"g14", name: "Pantheon", artist: "Unknown (reign of Hadrian)", date: "118\u2013125 CE", medium: "Concrete, marble, brick", location: "Rome \u2014 Imperial Roman", notes: "Temple to all the gods. Unreinforced concrete dome: 143 ft diameter, oculus at top." , smarthistoryUrl: "https://smarthistory.org/pantheon/"},
+      { id:"g15", name: "Column of Trajan", artist: "Apollodorus of Damascus (attr.)", date: "113 CE", medium: "Marble", location: "Forum of Trajan, Rome", notes: "30-meter marble column celebrating victory over the Dacians. Continuous spiral narrative relief." , smarthistoryUrl: "https://smarthistory.org/column-of-trajan/"}
+    ]
+  },
+
+  // ── Unit 4: Early Christian & Byzantine ────────────────────────────────────
+  {
+    id: "early-christian-byzantine", year: 300, label: "300\u2013900 CE",
+    title: "\u65e9\u671f\u57fa\u7763\u6559\u4e0e\u62dc\u5360\u5ead", titleEn: "Early Christian & Byzantine",
+    period: "300 \u2013 900 CE",
+    desc: "Christianity transforms Roman art: mosaic replaces fresco, frontal hieratic figures replace Classical naturalism, and light becomes divine metaphor.",
+    color: "#7A6B9A", side: "bottom", offset: 165,
+    works: [
+      { id:"ec1", name: "Catacomb of Priscilla", artist: "Unknown", date: "c. 200\u2013400 CE", medium: "Fresco", location: "Rome \u2014 Early Christian", notes: "Underground burial chambers used by early Christians. Frescoes depict biblical scenes." , smarthistoryUrl: "https://smarthistory.org/catacomb-of-priscilla/"},
+      { id:"ec2", name: "Santa Sabina", artist: "Unknown", date: "c. 422\u2013432 CE", medium: "Brick, marble", location: "Rome \u2014 Early Christian", notes: "One of the earliest surviving Christian basilicas. Long nave, side aisles, apse at east end." , smarthistoryUrl: "https://smarthistory.org/santa-sabina/"},
+      { id:"ec3", name: "Hagia Sophia", artist: "Anthemius of Tralles & Isidorus of Miletus", date: "532\u2013537 CE", medium: "Brick, marble, mosaic, gold", location: "Constantinople (Istanbul) \u2014 Byzantine", notes: "Greatest architectural achievement of the Byzantine Empire. Massive dome appears to float." , smarthistoryUrl: "https://smarthistory.org/hagia-sophia/"},
+      { id:"ec4", name: "San Vitale & Justinian Mosaic", artist: "Unknown", date: "c. 547 CE", medium: "Brick, marble, mosaic", location: "Ravenna, Italy \u2014 Byzantine", notes: "Octagonal church with famous apse mosaics depicting Emperor Justinian and Empress Theodora." , smarthistoryUrl: "https://smarthistory.org/san-vitale/"},
+      { id:"ec5", name: "Virgin and Child with Saints and Angels", artist: "Unknown", date: "c. 6th century CE", medium: "Encaustic on wood", location: "St. Catherine\"s Monastery, Sinai \u2014 Byzantine", notes: "One of the earliest surviving icons. Encaustic technique gives lifelike quality." , smarthistoryUrl: "https://smarthistory.org/virgin-christ-child-with-saints-and-angels/"},
+      { id:"ec6", name: "Lindisfarne Gospels", artist: "Eadfrith (Bishop of Lindisfarne)", date: "c. 715\u2013720 CE", medium: "Ink and pigment on vellum", location: "Lindisfarne, England \u2014 Hiberno-Saxon", notes: "Illuminated gospel book. Carpet pages of dense interlace patterns; Chi-Rho page." , smarthistoryUrl: "https://smarthistory.org/lindisfarne-gospels/"},
+      { id:"ec7", name: "Church of Sainte-Foy, Conques", artist: "Unknown", date: "c. 1050\u20131130 CE", medium: "Stone", location: "Conques, France \u2014 Romanesque", notes: "Pilgrimage church on the route to Santiago de Compostela. Reliquary of Saint Foy." , smarthistoryUrl: "https://smarthistory.org/reliquary-statue-of-sainte-foy/"}
+    ]
+  },
+
+  // ── Unit 5: Medieval Europe ─────────────────────────────────────────────────
+  {
+    id: "medieval-europe", year: 1000, label: "1000\u20131400 CE",
+    title: "\u4e2d\u4e16\u7eaa\u6b27\u6d32", titleEn: "Medieval Europe",
+    period: "1000 \u2013 1400 CE",
+    desc: "Gothic cathedrals reach for heaven with pointed arches and stained glass; illuminated manuscripts and tapestries narrate sacred and secular stories.",
+    color: "#5C7A5C", side: "top", offset: -165,
+    works: [
+      { id:"m1", name: "Bayeux Tapestry", artist: "Unknown (possibly English embroiderers)", date: "c. 1066\u20131080 CE", medium: "Wool embroidery on linen", location: "Normandy, France \u2014 Norman/Anglo-Saxon", notes: "Nearly 70-meter long embroidered narrative of the Norman Conquest of England." , smarthistoryUrl: "https://smarthistory.org/bayeux-tapestry/"},
+      { id:"m2", name: "Chartres Cathedral", artist: "Unknown", date: "c. 1145\u20131220 CE", medium: "Stone, stained glass", location: "Chartres, France \u2014 Gothic", notes: "Masterpiece of Gothic architecture. Pointed arches and flying buttresses allow soaring height." , smarthistoryUrl: "https://smarthistory.org/chartres-cathedral/"},
+      { id:"m3", name: "Rottgen Pieta", artist: "Unknown", date: "c. 1300\u20131325 CE", medium: "Painted wood", location: "Germany \u2014 Late Medieval/Gothic", notes: "Devotional sculpture (Andachtsbild) showing the Virgin Mary holding the dead Christ." , smarthistoryUrl: "https://smarthistory.org/rottgen-pieta/"},
+      { id:"m4", name: "Arena (Scrovegni) Chapel frescoes", artist: "Giotto di Bondone", date: "c. 1303\u20131305 CE", medium: "Fresco", location: "Padua, Italy \u2014 Proto-Renaissance", notes: "Revolutionary cycle of 38 frescoes depicting lives of the Virgin and Christ. Emotional naturalism." , smarthistoryUrl: "https://smarthistory.org/giotto-arena-chapel/"},
+      { id:"m5", name: "Golden Haggadah", artist: "Unknown", date: "c. 1320 CE", medium: "Illuminated manuscript (gold leaf)", location: "Barcelona, Spain \u2014 Sephardic Jewish", notes: "Among the finest Hebrew illuminated manuscripts. Haggadah tells the story of the Exodus." , smarthistoryUrl: "https://smarthistory.org/the-golden-haggadah/"},
+      { id:"m6", name: "Tres Riches Heures du Duc de Berry", artist: "Limbourg Brothers (Pol, Herman, Jean)", date: "c. 1413\u20131416 CE", medium: "Tempera and gold on vellum", location: "France \u2014 International Gothic", notes: "The most celebrated illuminated Book of Hours. Calendar pages depict aristocratic and peasant life." , smarthistoryUrl: "https://smarthistory.org/tres-riches-heures/"}
+    ]
+  },
+
+  // ── Unit 6: Renaissance ─────────────────────────────────────────────────────
+  {
+    id: "renaissance", year: 1420, label: "1420\u20131600",
+    title: "\u6587\u827a\u590d\u5174", titleEn: "Renaissance",
+    period: "1420 \u2013 1600 CE",
+    desc: "Humanism, linear perspective, and the revival of classical antiquity transform painting, sculpture, and architecture in Italy and Northern Europe.",
+    color: "#e8749c", side: "bottom", offset: 165,
+    works: [
+      { id:"r1",  name: "Florence Cathedral Dome", artist: "Filippo Brunelleschi", date: "1420\u20131436 CE", medium: "Brick, marble, stone", location: "Florence, Italy \u2014 Early Renaissance", notes: "Engineering masterpiece that launched the Renaissance. Double-shell dome built without scaffolding." , smarthistoryUrl: "https://smarthistory.org/florence-cathedral/"},
+      { id:"r2",  name: "Gates of Paradise (East Doors)", artist: "Lorenzo Ghiberti", date: "1425\u20131452 CE", medium: "Gilded bronze", location: "Florence, Italy \u2014 Early Renaissance", notes: "Ten gilded bronze panels depicting scenes from the Old Testament. Named by Michelangelo." , smarthistoryUrl: "https://smarthistory.org/ghibertis-gates-of-paradise/"},
+      { id:"r3",  name: "David", artist: "Donatello", date: "c. 1440\u20131460 CE", medium: "Bronze", location: "Florence, Italy \u2014 Early Renaissance", notes: "First free-standing nude sculpture since classical antiquity. Commissioned by Medici family." , smarthistoryUrl: "https://smarthistory.org/donatellos-david/"},
+      { id:"r4",  name: "The Arnolfini Portrait", artist: "Jan van Eyck", date: "1434 CE", medium: "Oil on oak panel", location: "Bruges (now in British Museum) \u2014 Northern Renaissance", notes: "Double portrait of an Italian merchant and his wife. Van Eyck\"s mastery of oil paint." , smarthistoryUrl: "https://smarthistory.org/van-eyck-arnolfini-portrait/"},
+      { id:"r5",  name: "Birth of Venus", artist: "Sandro Botticelli", date: "c. 1484\u20131486 CE", medium: "Tempera on canvas", location: "Florence, Italy \u2014 Renaissance", notes: "Mythological painting commissioned by the Medici. Venus born from the sea." , smarthistoryUrl: "https://smarthistory.org/botticelli-birth-of-venus/"},
+      { id:"r6",  name: "Last Supper", artist: "Leonardo da Vinci", date: "c. 1494\u20131498 CE", medium: "Tempera and oil on plaster", location: "Santa Maria delle Grazie, Milan \u2014 High Renaissance", notes: "Monumental mural depicting the moment Christ announces one apostle will betray him." , smarthistoryUrl: "https://smarthistory.org/last-supper-2/"},
+      { id:"r7",  name: "David", artist: "Michelangelo", date: "1501\u20131504 CE", medium: "Marble", location: "Florence, Italy \u2014 High Renaissance", notes: "Colossal (5.17m) marble statue depicting David before the battle with Goliath." , smarthistoryUrl: "https://smarthistory.org/michelangelo-david/"},
+      { id:"r8",  name: "Sistine Chapel Ceiling", artist: "Michelangelo", date: "1508\u20131512 CE", medium: "Fresco", location: "Vatican City \u2014 High Renaissance", notes: "Commissioned by Pope Julius II. Nine central scenes from Genesis including Creation of Adam." , smarthistoryUrl: "https://smarthistory.org/michelangelo-sistine-chapel/"},
+      { id:"r9",  name: "School of Athens", artist: "Raphael", date: "1509\u20131511 CE", medium: "Fresco", location: "Stanza della Segnatura, Vatican \u2014 High Renaissance", notes: "Fresco celebrating philosophy. Plato and Aristotle at center; portraits of Renaissance contemporaries." , smarthistoryUrl: "https://smarthistory.org/raphael-school-of-athens/"},
+      { id:"r10", name: "Isenheim Altarpiece", artist: "Matthias Grunewald", date: "c. 1512\u20131516 CE", medium: "Oil on wood panel", location: "Isenheim (now in Colmar, France) \u2014 Northern Renaissance", notes: "Multi-panel polyptych made for a hospital caring for patients with ergotism." , smarthistoryUrl: "https://smarthistory.org/grunewald-isenheim/"},
+      { id:"r11", name: "Hunters in the Snow", artist: "Pieter Bruegel the Elder", date: "1565 CE", medium: "Oil on wood panel", location: "Flanders (now in Vienna) \u2014 Northern Renaissance", notes: "One of six surviving panels from a series depicting months/seasons. Panoramic winter landscape." , smarthistoryUrl: "https://smarthistory.org/bruegel-hunters-in-the-snow/"}
+    ]
+  },
+
+  // ── Unit 7: Baroque ─────────────────────────────────────────────────────────
+  {
+    id: "baroque", year: 1600, label: "1600\u20131750",
+    title: "\u5df4\u6d1b\u514b", titleEn: "Baroque",
+    period: "1600 \u2013 1750 CE",
+    desc: "Dramatic light, movement, and emotion in service of the Counter-Reformation, absolute monarchy, and the Dutch merchant class.",
+    color: "#C47A3A", side: "top", offset: -165,
+    works: [
+      { id:"b1", name: "Calling of Saint Matthew", artist: "Caravaggio", date: "c. 1599\u20131600 CE", medium: "Oil on canvas", location: "Contarelli Chapel, Rome \u2014 Italian Baroque", notes: "Depicts the moment Christ calls Matthew the tax collector. Revolutionary tenebrism." , smarthistoryUrl: "https://smarthistory.org/caravaggio-calling-of-saint-matthew/"},
+      { id:"b2", name: "Ecstasy of Saint Teresa", artist: "Gian Lorenzo Bernini", date: "1647\u20131652 CE", medium: "Marble, stucco, gilded bronze", location: "Cornaro Chapel, Rome \u2014 Italian Baroque", notes: "Multi-media theatrical ensemble: sculpture, architecture, painting combined." , smarthistoryUrl: "https://smarthistory.org/bernini-ecstasy-of-saint-teresa/"},
+      { id:"b3", name: "Las Meninas", artist: "Diego Velazquez", date: "1656 CE", medium: "Oil on canvas", location: "Madrid, Spain \u2014 Spanish Baroque", notes: "One of Western art\"s most analyzed paintings. Self-referential composition with reflections." , smarthistoryUrl: "https://smarthistory.org/velazquez-las-meninas/"},
+      { id:"b4", name: "Palace of Versailles", artist: "Louis Le Vau & Jules Hardouin-Mansart (architecture); Andre Le Notre (gardens)", date: "begun 1661 CE", medium: "Stone, marble, gold leaf, mirrors", location: "Versailles, France \u2014 French Baroque", notes: "Built by Louis XIV (the Sun King) as symbol of absolute royal power. Hall of Mirrors: 73m long." , smarthistoryUrl: "https://smarthistory.org/palace-of-versailles/"},
+      { id:"b5", name: "Woman Holding a Balance", artist: "Johannes Vermeer", date: "c. 1664 CE", medium: "Oil on canvas", location: "Dutch Netherlands \u2014 Dutch Golden Age", notes: "A woman stands at a table, holding an empty balance scale. Vermeer\"s mastery of light." , smarthistoryUrl: "https://smarthistory.org/vermeer-woman-holding-a-balance/"},
+      { id:"b6", name: "The Swing", artist: "Jean-Honore Fragonard", date: "1767 CE", medium: "Oil on canvas", location: "London Wallace Collection \u2014 French Rococo", notes: "Commissioned by a French nobleman. Epitome of Rococo: lightness, pleasure, aristocratic frivolity." , smarthistoryUrl: "https://smarthistory.org/fragonard-the-swing/"}
+    ]
+  },
+
+  // ── Unit 8: Neoclassicism & Romanticism ─────────────────────────────────────
+  {
+    id: "neoclassical-romantic", year: 1750, label: "1750\u20131870",
+    title: "\u65b0\u53e4\u5178\u4e0e\u6d6a\u6f2b\u4e3b\u4e49", titleEn: "Neoclassicism & Romanticism",
+    period: "1750 \u2013 1870 CE",
+    desc: "Enlightenment reason inspires Neoclassical restraint; Romantic artists counter with emotion, nature, and the sublime.",
+    color: "#5A7FA8", side: "bottom", offset: 165,
+    works: [
+      { id:"n1", name: "The Oath of the Horatii", artist: "Jacques-Louis David", date: "1784 CE", medium: "Oil on canvas", location: "Paris, France \u2014 Neoclassicism", notes: "Commissioned by Louis XVI but became a rallying image for the French Revolution." , smarthistoryUrl: "https://smarthistory.org/david-oath-of-the-horatii/"},
+      { id:"n2", name: "Self-Portrait", artist: "Elisabeth Vigee Le Brun", date: "1790 CE", medium: "Oil on canvas", location: "Florence, Uffizi \u2014 Neoclassicism", notes: "Self-portrait showing the artist painting a portrait of Marie Antoinette. Rare female academician." , smarthistoryUrl: "https://smarthistory.org/vigee-le-brun-self-portrait/"},
+      { id:"n3", name: "Disasters of War", artist: "Francisco Goya", date: "c. 1810\u20131823 CE", medium: "Etching and aquatint", location: "Spain \u2014 Romanticism", notes: "Series of 82 prints depicting the brutality of the Napoleonic Wars in Spain." },
+      { id:"n4", name: "La Grande Odalisque", artist: "Jean-Auguste-Dominique Ingres", date: "1814 CE", medium: "Oil on canvas", location: "Paris, Louvre \u2014 Neoclassicism", notes: "Reclining nude woman viewed from behind in an Ottoman harem setting. Anatomically distorted." , smarthistoryUrl: "https://smarthistory.org/ingres-grande-odalisque/"},
+      { id:"n5", name: "The Raft of the Medusa", artist: "Theodore Gericault", date: "1818\u20131819 CE", medium: "Oil on canvas", location: "Paris, Louvre \u2014 French Romanticism", notes: "Depicts survivors of the French frigate Meduse, 150 people cast adrift after officer negligence." , smarthistoryUrl: "https://smarthistory.org/gericault-raft-of-the-medusa/"},
+      { id:"n6", name: "Liberty Leading the People", artist: "Eugene Delacroix", date: "1830 CE", medium: "Oil on canvas", location: "Paris, Louvre \u2014 French Romanticism", notes: "Commemorates the July Revolution of 1830. Allegorical figure of Liberty leads the charge." , smarthistoryUrl: "https://smarthistory.org/delacroix-liberty-leading-the-people/"},
+      { id:"n7", name: "Olympia", artist: "Edouard Manet", date: "1863 CE", medium: "Oil on canvas", location: "Paris, Musee d\"Orsay \u2014 Realism", notes: "Nude woman reclines on a bed, staring directly at the viewer. Challenged academic tradition." , smarthistoryUrl: "https://smarthistory.org/manet-olympia/"}
+    ]
+  },
+
+  // ── Unit 9: Impressionism & Post-Impressionism ──────────────────────────────
+  {
+    id: "impressionism-post", year: 1870, label: "1870\u20131910",
+    title: "\u5370\u8c61\u6d3e\u4e0e\u540e\u5370\u8c61\u6d3e", titleEn: "Impressionism & Post-Impressionism",
+    period: "1870 \u2013 1910 CE",
+    desc: "Artists abandon the studio for outdoors, capturing light and sensation; Post-Impressionists push toward personal expression and structural form.",
+    color: "#7AB8E8", side: "top", offset: -165,
+    works: [
+      { id:"i1", name: "Gare Saint-Lazare", artist: "Claude Monet", date: "1877 CE", medium: "Oil on canvas", location: "Paris \u2014 Impressionism", notes: "One of twelve paintings Monet made of the Saint-Lazare train station. Steam, light, atmosphere." , smarthistoryUrl: "https://smarthistory.org/monet-gare-saint-lazare/"},
+      { id:"i2", name: "A Sunday on La Grande Jatte", artist: "Georges Seurat", date: "1884\u20131886 CE", medium: "Oil on canvas", location: "Chicago \u2014 Post-Impressionism/Pointillism", notes: "Monumental painting (10 x 7 ft) made entirely of tiny dots of pure color (pointillism)." , smarthistoryUrl: "https://smarthistory.org/seurat-sunday-afternoon/"},
+      { id:"i3", name: "The Starry Night", artist: "Vincent van Gogh", date: "June 1889 CE", medium: "Oil on canvas", location: "MoMA, New York \u2014 Post-Impressionism", notes: "Painted from memory at Saint-Paul-de-Mausole asylum. Swirling, turbulent sky filled with light." , smarthistoryUrl: "https://smarthistory.org/van-gogh-starry-night/"},
+      { id:"i4", name: "The Large Bathers", artist: "Paul Cezanne", date: "c. 1900\u20131906 CE", medium: "Oil on canvas", location: "Philadelphia Museum of Art \u2014 Post-Impressionism", notes: "Final monumental work; took 7 years to complete. Proto-Cubist treatment of forms." , smarthistoryUrl: "https://smarthistory.org/cezanne-large-bathers/"},
+      { id:"i5", name: "Where Do We Come From? What Are We? Where Are We Going?", artist: "Paul Gauguin", date: "1897\u20131898 CE", medium: "Oil on canvas", location: "Museum of Fine Arts, Boston \u2014 Post-Impressionism/Primitivism", notes: "Gauguin\"s largest work, painted in Tahiti. Philosophical meditation on human existence." , smarthistoryUrl: "https://smarthistory.org/gauguin-d-ou-venons-nous/"},
+      { id:"i6", name: "The Burghers of Calais", artist: "Auguste Rodin", date: "1884\u20131895 CE", medium: "Bronze", location: "Calais, France (multiple casts) \u2014 Realism/Modern", notes: "Commemorates six citizens who surrendered to Edward III of England. Identify with figures." , smarthistoryUrl: "https://smarthistory.org/rodin-burghers-of-calais/"}
+    ]
+  },
+
+  // ── Unit 10: Modern Art ─────────────────────────────────────────────────────
+  {
+    id: "modern-art", year: 1905, label: "1905\u20131960",
+    title: "\u73b0\u4ee3\u4e3b\u4e49", titleEn: "Modern Art",
+    period: "1905 \u2013 1960 CE",
+    desc: "Fauvism, Cubism, Expressionism, Dada, Surrealism, and Abstract Expressionism shatter conventions of representation, space, and meaning.",
+    color: "#E05A8A", side: "bottom", offset: 165,
+    works: [
+      { id:"mod1", name: "Les Demoiselles d\"Avignon", artist: "Pablo Picasso", date: "1907 CE", medium: "Oil on canvas", location: "MoMA, New York \u2014 Proto-Cubism", notes: "Five nude female figures confrontationally face the viewer. African mask influence, fractured space." , smarthistoryUrl: "https://smarthistory.org/picasso-les-demoiselles-davignon/"},
+      { id:"mod2", name: "Fountain", artist: "Marcel Duchamp", date: "1917 CE", medium: "Readymade (porcelain urinal)", location: "Replicas in various museums \u2014 Dada", notes: "A commercially manufactured urinal submitted to an art show. Questioned art\"s definition." , smarthistoryUrl: "https://smarthistory.org/duchamp-fountain/"},
+      { id:"mod3", name: "Villa Savoye", artist: "Le Corbusier", date: "1928\u20131931 CE", medium: "Reinforced concrete, glass, steel", location: "Poissy, France \u2014 International Style/Modernism", notes: "Embodies Le Corbusier\"s Five Points of New Architecture: pilotis, flat roof, free plan." , smarthistoryUrl: "https://smarthistory.org/le-corbusier-villa-savoye/"},
+      { id:"mod4", name: "The Two Fridas", artist: "Frida Kahlo", date: "1939 CE", medium: "Oil on canvas", location: "Museo de Arte Moderno, Mexico City \u2014 Surrealism/Mexican Art", notes: "Double self-portrait painted the year of her divorce from Diego Rivera. Two hearts connected." , smarthistoryUrl: "https://smarthistory.org/kahlo-two-fridas/"},
+      { id:"mod5", name: "Fallingwater", artist: "Frank Lloyd Wright", date: "1936\u20131939 CE", medium: "Reinforced concrete, sandstone, glass", location: "Mill Run, Pennsylvania \u2014 Organic Architecture", notes: "Weekend house for the Kaufmann family, built over a waterfall. Cantilevered terraces." , smarthistoryUrl: "https://smarthistory.org/fallingwater/"},
+      { id:"mod6", name: "Autumn Rhythm (Number 30)", artist: "Jackson Pollock", date: "1950 CE", medium: "Enamel on canvas", location: "Metropolitan Museum, New York \u2014 Abstract Expressionism", notes: "Created using Pollock\"s drip technique: canvas on the floor, paint poured using sticks and syringes." , smarthistoryUrl: "https://smarthistory.org/pollock-autumn-rhythm/"},
+      { id:"mod7", name: "Marilyn Diptych", artist: "Andy Warhol", date: "1962 CE", medium: "Silkscreen ink and synthetic polymer paint on canvas", location: "Tate Modern, London \u2014 Pop Art", notes: "Made weeks after Marilyn Monroe\"s death. Fifty repeated images: vivid color vs. fading black." , smarthistoryUrl: "https://smarthistory.org/warhol-marilyn-diptych/"},
+      { id:"mod8", name: "Vietnam Veterans Memorial", artist: "Maya Lin", date: "1982 CE", medium: "Black granite", location: "Washington D.C. \u2014 Contemporary/Minimalism", notes: "Designed by Maya Lin, a 21-year-old Yale architecture student. Two black granite walls with 58,318 names." , smarthistoryUrl: "https://smarthistory.org/vietnam-veterans-memorial/"}
+    ]
+  },
+
+  // ── Unit 11: Global Contemporary ───────────────────────────────────────────
+  {
+    id: "contemporary", year: 1980, label: "1980\u20132010",
+    title: "\u5f53\u4ee3\u5168\u7403\u827a\u672f", titleEn: "Global Contemporary",
+    period: "1980 \u2013 present",
+    desc: "Globalization, identity politics, technology, and postcolonialism define art after 1980, with works spanning installation, video, and new media.",
+    color: "#9B59B6", side: "top", offset: -165,
+    works: [
+      { id:"c1", name: "Vietnam Veterans Memorial", artist: "Maya Lin", date: "1982 CE", medium: "Black granite", location: "Washington D.C. \u2014 Contemporary", notes: "Designed by 21-year-old Yale student Maya Lin. Two black granite walls inscribed with 58,318 names." , smarthistoryUrl: "https://smarthistory.org/vietnam-veterans-memorial/"},
+      { id:"c2", name: "Pink Panther", artist: "Jeff Koons", date: "1988 CE", medium: "Porcelain", location: "Various collections \u2014 Neo-Pop/Postmodernism", notes: "Porcelain sculpture of a woman holding the Pink Panther cartoon character. Kitsch elevated to fine art." , smarthistoryUrl: "https://smarthistory.org/koons-pink-panther/"},
+      { id:"c3", name: "Untitled (Your body is a battleground)", artist: "Barbara Kruger", date: "1989 CE", medium: "Photographic silkscreen", location: "Broad Museum, Los Angeles \u2014 Feminist/Conceptual Art", notes: "Created for the 1989 Women\"s March on Washington. Black-and-white photograph split in two." , smarthistoryUrl: "https://smarthistory.org/barbara-kruger-untitled/"},
+      { id:"c4", name: "Dancing at the Louvre (from The French Collection)", artist: "Faith Ringgold", date: "1991 CE", medium: "Acrylic on canvas with pieced fabric border", location: "Various collections \u2014 African American Art", notes: "Story quilt depicting three Black women dancing in the Louvre before Western masterpieces." , smarthistoryUrl: "https://smarthistory.org/faith-ringgold-dancing-at-the-louvre/"},
+      { id:"c5", name: "The Gates", artist: "Christo and Jeanne-Claude", date: "conceived 1979; installed 2005 CE", medium: "Steel, nylon fabric", location: "Central Park, New York \u2014 Environmental/Land Art", notes: "7,503 saffron-colored fabric panels suspended from steel gates along 23 miles of Central Park walkways." },
+      { id:"c6", name: "21st Century Museum of Contemporary Art", artist: "SANAA (Kazuyo Sejima & Ryue Nishizawa)", date: "2004 CE", medium: "Glass, aluminum, concrete", location: "Kanazawa, Japan \u2014 Contemporary Architecture", notes: "Circular building with no front or back. Multiple entrances dissolve the hierarchy of inside/outside." }
+    ]
+  },
+
+  // ── Unit 12: Indigenous Americas ────────────────────────────────────────────
+  {
+    id: "indigenous-americas", year: -500, label: "1000 BCE\u20131980 CE",
+    title: "\u7f8e\u6d32\u539f\u4f4f\u6c11\u827a\u672f", titleEn: "Indigenous Americas",
+    period: "1,000 BCE \u2013 1980 CE",
+    desc: "From Olmec colossal heads to Aztec calendars and Andean textiles, the Americas produced monumental and portable art rooted in cosmology and ritual.",
+    color: "#C87941", side: "bottom", offset: 260,
+    works: [
+      { id:"ia1", name: "Great Serpent Mound", artist: "Unknown (Fort Ancient culture)", date: "c. 1070 CE", medium: "Earthwork", location: "Adams County, Ohio \u2014 Indigenous North America", notes: "The largest surviving effigy mound in the world: 1,348 feet long, 3 feet high." , smarthistoryUrl: "https://smarthistory.org/great-serpent-mound/"},
+      { id:"ia2", name: "Yaxchilan Lintel 24", artist: "Unknown", date: "c. 723\u2013726 CE", medium: "Limestone", location: "Yaxchilan, Chiapas, Mexico \u2014 Maya", notes: "Relief carving from a Maya palace doorway. Lady Xoc performs bloodletting ritual." , smarthistoryUrl: "https://smarthistory.org/yaxchilan/"},
+      { id:"ia3", name: "Templo Mayor", artist: "Unknown (Aztec/Mexica)", date: "c. 1375\u20131520 CE", medium: "Stone", location: "Tenochtitlan (Mexico City) \u2014 Aztec", notes: "The great pyramid at the center of the Aztec capital. Dual staircase leads to two temples." , smarthistoryUrl: "https://smarthistory.org/templo-mayor/"},
+      { id:"ia4", name: "Sunstone (Aztec Calendar Stone)", artist: "Unknown", date: "c. 1427\u20131479 CE", medium: "Basalt", location: "Museo Nacional de Antropologia, Mexico City \u2014 Aztec", notes: "Monumental basalt disk (12 feet diameter, 24 tons). A cosmological monument, not a calendar." , smarthistoryUrl: "https://smarthistory.org/aztec-sun-stone/"},
+      { id:"ia5", name: "City of Cusco", artist: "Unknown (Inca)", date: "c. 1440 CE", medium: "Stone", location: "Cusco, Peru \u2014 Inca", notes: "Capital of the Inca Empire; planned in the shape of a puma. Extraordinary Inca stonework." , smarthistoryUrl: "https://smarthistory.org/city-of-cusco/"},
+      { id:"ia6", name: "Black-on-Black Ceramic Vessel", artist: "Maria Martinez & Julian Martinez", date: "1939 CE", medium: "Blackware ceramic", location: "San Ildefonso Pueblo, New Mexico \u2014 Pueblo/Native American", notes: "Maria Martinez revived the ancient Pueblo blackware technique. Matte designs on polished surface." , smarthistoryUrl: "https://smarthistory.org/maria-martinez-black-on-black-ceramic-vessel/"}
+    ]
+  },
+
+  // ── Unit 13: Africa ──────────────────────────────────────────────────────────
+  {
+    id: "africa", year: 900, label: "1100\u20131980 CE",
+    title: "\u975e\u6d32\u827a\u672f", titleEn: "Africa",
+    period: "1100 \u2013 1980 CE",
+    desc: "African visual culture spans royal bronzes, carved ivory, textile traditions, and ritual objects that assert political power and spiritual connection.",
+    color: "#B8860B", side: "top", offset: -260,
+    works: [
+      { id:"af1", name: "Great Mosque of Djenne", artist: "Unknown", date: "original c. 1200 CE; current structure 1907 CE", medium: "Mud brick (adobe), palm wood", location: "Djenne, Mali \u2014 West African Islamic", notes: "Largest mud-brick building in the world. Built on a raised platform to protect from flooding." , smarthistoryUrl: "https://smarthistory.org/great-mosque-of-djenne/"},
+      { id:"af2", name: "Ife Head", artist: "Unknown (Yoruba)", date: "c. 1200\u20131400 CE", medium: "Copper alloy", location: "Ife, Nigeria \u2014 Yoruba", notes: "Remarkably naturalistic portrait head from the ancient city of Ife. Refined lost-wax casting." , smarthistoryUrl: "https://smarthistory.org/ife-head/"},
+      { id:"af3", name: "Benin Plaque (Oba with Warriors)", artist: "Unknown (Benin Kingdom)", date: "c. 1550\u20131650 CE", medium: "Brass", location: "Nigeria \u2014 Kingdom of Benin", notes: "One of hundreds of brass plaques that covered the columns of the Oba\"s palace in Benin City." , smarthistoryUrl: "https://smarthistory.org/benin-plaque/"},
+      { id:"af4", name: "Kente Cloth", artist: "Unknown (Asante weavers)", date: "c. 17th century CE\u2013present", medium: "Silk and cotton", location: "Ghana \u2014 Asante Kingdom", notes: "Royal cloth woven in narrow strips sewn together. Bold geometric patterns encode meaning." , smarthistoryUrl: "https://smarthistory.org/kente-cloth/"},
+      { id:"af5", name: "Lukasa (Memory Board)", artist: "Unknown (Luba Kingdom)", date: "c. 19th\u201320th CE", medium: "Wood, beads, metal", location: "Democratic Republic of Congo \u2014 Luba Kingdom", notes: "Hand-held wooden board encrusted with beads encoding history, geography, and genealogy." },
+      { id:"af6", name: "Female (Pwo) Mask", artist: "Unknown (Chokwe)", date: "c. late 19th\u2013early 20th CE", medium: "Wood, fiber, pigment", location: "Angola/DRC \u2014 Chokwe", notes: "Female ancestral mask worn by male dancers during initiation ceremonies." }
+    ]
+  },
+
+  // ── Unit 14: West & Central Asia ─────────────────────────────────────────────
+  {
+    id: "west-central-asia", year: 600, label: "500 BCE\u20131980 CE",
+    title: "\u897f\u4e9a\u4e0e\u4e2d\u4e9a\u827a\u672f", titleEn: "West & Central Asia",
+    period: "500 BCE \u2013 1980 CE",
+    desc: "Islamic art develops geometric pattern, calligraphy, and monumental architecture; Persia, Ottoman, and Mughal empires leave extraordinary legacies.",
+    color: "#4A90A4", side: "bottom", offset: -260,
+    works: [
+      { id:"wa1", name: "The Kaaba", artist: "Unknown", date: "Pre-Islamic; rebuilt multiple times", medium: "Granite, marble", location: "Mecca, Saudi Arabia \u2014 Islamic", notes: "The most sacred site in Islam. Cube-shaped structure draped in a black cloth (kiswa)." , smarthistoryUrl: "https://smarthistory.org/the-kaaba/"},
+      { id:"wa2", name: "Dome of the Rock", artist: "Unknown", date: "691\u2013692 CE", medium: "Stone, mosaic, gold-sheathed dome", location: "Jerusalem \u2014 Early Islamic", notes: "Earliest surviving major Islamic monument. Built by Caliph Abd al-Malik over the Foundation Stone." , smarthistoryUrl: "https://smarthistory.org/dome-of-the-rock/"},
+      { id:"wa3", name: "Folio from the Quran (Kufic script)", artist: "Unknown", date: "c. 9th\u201310th CE", medium: "Ink, gold on vellum", location: "Various collections \u2014 Early Islamic", notes: "Horizontal format typical of early Qurans. Angular Kufic script: one of the oldest Arabic scripts." },
+      { id:"wa4", name: "Bahram Gur Fights the Karg (from the Shahnama)", artist: "Sultan Muhammad", date: "c. 1525 CE", medium: "Opaque watercolor, gold on paper", location: "Tabriz, Iran \u2014 Safavid Persian", notes: "Illustration from Shah Tahmasp\"s Shahnama (Book of Kings), the Persian national epic." },
+      { id:"wa5", name: "Taj Mahal", artist: "Ustad Ahmad Lahauri (attr.)", date: "1632\u20131653 CE", medium: "White marble with semi-precious stone inlay", location: "Agra, India \u2014 Mughal", notes: "Mausoleum built by Mughal Emperor Shah Jahan for his wife Mumtaz Mahal who died in childbirth." , smarthistoryUrl: "https://smarthistory.org/taj-mahal/"}
+    ]
+  },
+
+  // ── Unit 15: South, East & Southeast Asia ────────────────────────────────────
+  {
+    id: "south-east-asia", year: -300, label: "300 BCE\u20131980 CE",
+    title: "\u4e9a\u6d32\u827a\u672f", titleEn: "South, East & Southeast Asia",
+    period: "300 BCE \u2013 1980 CE",
+    desc: "Buddhism, Hinduism, and Confucianism inspire monumental temple complexes, bronze casting, ink painting, and garden design across the continent.",
+    color: "#E86B3A", side: "top", offset: -360,
+    works: [
+      { id:"as1", name: "Stupa at Sanchi", artist: "Unknown", date: "c. 300 BCE\u2013100 CE", medium: "Sandstone, granite", location: "Madhya Pradesh, India \u2014 Buddhist", notes: "Hemispherical mound (anda) built over relics of the Buddha. Circumambulatory path for ritual." , smarthistoryUrl: "https://smarthistory.org/stupa-at-sanchi/"},
+      { id:"as2", name: "Borobudur Temple", artist: "Unknown (Sailendra dynasty)", date: "c. 750\u2013850 CE", medium: "Andesite stone", location: "Java, Indonesia \u2014 Buddhist", notes: "Largest Buddhist monument in the world. Nine stacked platforms form a three-dimensional mandala." , smarthistoryUrl: "https://smarthistory.org/borobudur/"},
+      { id:"as3", name: "Angkor Wat", artist: "Unknown (Khmer Empire)", date: "c. 1113\u20131150 CE", medium: "Sandstone", location: "Siem Reap, Cambodia \u2014 Khmer Hindu-Buddhist", notes: "Largest religious monument in the world. Built by King Suryavarman II as a Hindu temple." , smarthistoryUrl: "https://smarthistory.org/angkor-wat/"},
+      { id:"as4", name: "Night Attack on the Sanjo Palace", artist: "Unknown", date: "c. 1250\u20131300 CE", medium: "Ink and colors on paper", location: "Museum of Fine Arts, Boston \u2014 Kamakura Japan", notes: "Handscroll (emakimono) depicting the 1160 Heiji Rebellion. Read right to left, unrolling gradually." , smarthistoryUrl: "https://smarthistory.org/night-attack-on-the-sanjo-palace/"},
+      { id:"as5", name: "Forbidden City", artist: "Unknown (Ming dynasty architects)", date: "c. 1406\u20131420 CE", medium: "Wood, stone, brick, glazed tile", location: "Beijing, China \u2014 Ming Dynasty", notes: "Imperial palace complex of 24 Ming and Qing emperors. 180 acres; 980 buildings; 9,999 rooms." , smarthistoryUrl: "https://smarthistory.org/forbidden-city/"},
+      { id:"as6", name: "Under the Wave off Kanagawa (The Great Wave)", artist: "Katsushika Hokusai", date: "c. 1830\u20131832 CE", medium: "Woodblock print", location: "Various collections \u2014 Edo Japan", notes: "From the series Thirty-Six Views of Mount Fuji. Wave claw-like foam fingers about to crash." , smarthistoryUrl: "https://smarthistory.org/hokusai-the-great-wave/"}
+    ]
+  },
+
+  // ── Unit 16: The Pacific ──────────────────────────────────────────────────────
+  {
+    id: "pacific", year: 700, label: "700\u20131980 CE",
+    title: "\u592a\u5e73\u6d0b\u827a\u672f", titleEn: "The Pacific",
+    period: "700 \u2013 1980 CE",
+    desc: "Pacific art encompasses the monumental moai of Easter Island, Maori meeting houses, and tapa cloth traditions tied to land, cosmology, and exchange.",
+    color: "#27AE8F", side: "bottom", offset: 260,
+    works: [
+      { id:"p1", name: "Nan Madol", artist: "Unknown (Saudeleur dynasty)", date: "c. 700\u20131600 CE", medium: "Basalt, coral", location: "Pohnpei, Micronesia \u2014 Micronesian", notes: "Artificial island city built on a coral reef, called the Venice of the Pacific. 92 man-made islands." , smarthistoryUrl: "https://smarthistory.org/nan-madol/"},
+      { id:"p2", name: "Moai on Platform (Ahu)", artist: "Unknown (Rapa Nui people)", date: "c. 1100\u20131600 CE", medium: "Volcanic tuff", location: "Easter Island (Rapa Nui), Chile \u2014 Polynesian", notes: "887 monolithic ancestor figures average 13 feet tall, 14 tons. Carved from volcanic tuff quarry." , smarthistoryUrl: "https://smarthistory.org/moai-on-ahu/"},
+      { id:"p3", name: "Hiapo (Tapa Cloth)", artist: "Unknown (Niue)", date: "c. 1850\u20131900 CE", medium: "Decorated bark cloth", location: "Pacific Islands \u2014 Polynesian", notes: "Made from the inner bark of the paper mulberry tree, beaten until thin and flexible." , smarthistoryUrl: "https://smarthistory.org/hiapo-tapa-cloth/"},
+      { id:"p4", name: "Presentation of Fijian Mats and Tapa Cloths to Queen Elizabeth II", artist: "Unknown", date: "1953 CE", medium: "Fiber, pigment", location: "Fiji \u2014 Pacific", notes: "Formal presentation during the coronation tour. Woven mats and tapa are the highest form of valuables in Fijian culture, equivalent to currency and sacred objects." , smarthistoryUrl: "https://smarthistory.org/presentation-of-fijian-mats/"}
+    ]
+  }
+];
+
+  // Segments are arranged left-to-right with a visual gap/break between them.
+  //
+  //  SEG 0: 30000 BCE → 500 BCE   (Prehistory + Ancient)
+  //  SEG 1: 500 BCE  → 1400 CE   (Classical + Medieval)
+  //  SEG 2: 1400 CE  → 2015 CE   (Renaissance → Contemporary)
+  //
+  // Each segment has its own world-X range.
+
+  const TIMELINE_Y = 420;
+
+  const SEG = [
+    { id:0, yearStart:-25000, yearEnd:-500,  xStart:200,  xEnd:2400,  label:"30,000 – 500 BCE" },
+    { id:1, yearStart:-500,   yearEnd:1400,  xStart:2900, xEnd:5100,  label:"500 BCE – 1400 CE" },
+    { id:2, yearStart:1400,   yearEnd:2015,  xStart:5600, xEnd:8800,  label:"1400 – 2015 CE" }
+  ];
+
+  const TOTAL_W = 9200;
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let panX = 0;              // horizontal only — timeline Y is always screen center
+let scale = 1;
+const SCALE_MIN = 0.4, SCALE_MAX = 2.0, SCALE_STEP = 0.15;
+
+let isPanning = false;
+let panStartX = 0, panOriginX = 0;
+
+let draggingCard = null;
+let dragOffset   = { x: 0, y: 0 };
+
+const cardPositions = {};
+let expandedCard = null;
+
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const world  = document.getElementById('world');
+
+// ─── Coordinate helpers ───────────────────────────────────────────────────────
+function getSegForYear(year) {
+  // Returns the segment that contains this year
+  for (let i = SEG.length - 1; i >= 0; i--) {
+    if (year >= SEG[i].yearStart) return SEG[i];
+  }
+  return SEG[0];
+}
+
+function yearToWorldX(year) {
+  const seg = getSegForYear(year);
+  const span = seg.yearEnd - seg.yearStart;
+  // Use log scale for ancient segments, linear for modern
+  let t;
+  if (seg.id === 0) {
+    // log scale for prehistory: compress large BCE range
+    const logStart = Math.log10(Math.max(1, Math.abs(seg.yearStart)));
+    const logEnd   = Math.log10(Math.max(1, Math.abs(seg.yearEnd)));
+    const logY     = year < 0 ? Math.log10(Math.max(1, Math.abs(year))) : 0;
+    t = 1.0 - (logY - logEnd) / (logStart - logEnd);
+  } else if (seg.id === 1) {
+    // log scale for classical/medieval
+    const shift = 600; // shift so -500 becomes 100
+    const s0 = Math.log10(seg.yearStart + shift);
+    const s1 = Math.log10(seg.yearEnd   + shift);
+    t = (Math.log10(year + shift) - s0) / (s1 - s0);
+  } else {
+    // linear for Renaissance → Contemporary
+    t = (year - seg.yearStart) / (seg.yearEnd - seg.yearStart);
+  }
+  t = Math.max(0, Math.min(1, t));
+  return seg.xStart + t * (seg.xEnd - seg.xStart);
+}
+
+// Timeline is always pinned to vertical screen center
+function timelineScreenY() { return window.innerHeight / 2; }
+
+// World → Screen
+function worldToScreen(wx, wy) {
+  return {
+    x: wx * scale + panX,
+    y: timelineScreenY() + (wy - TIMELINE_Y) * scale
+  };
+}
+
+// Screen → World
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - panX) / scale,
+    y: TIMELINE_Y + (sy - timelineScreenY()) / scale
+  };
+}
+
+// ─── Build DOM ────────────────────────────────────────────────────────────────
+function buildTimeline() {
+  const ticksBySeg = [
+    [-25000, -15000, -10000, -5000, -3000, -2000, -1500, -1000, -500],
+    [-500, -300, 0, 300, 500, 700, 900, 1100, 1300, 1400],
+    [1400, 1450, 1500, 1550, 1600, 1650, 1700, 1750, 1800, 1850, 1900, 1950, 2000, 2015]
+  ];
+
+  ticksBySeg.forEach(ticks => {
+    ticks.forEach(y => {
+      const wx = yearToWorldX(y);
+      const lbl = document.createElement('div');
+      lbl.className = 'year-label';
+      lbl.dataset.wx = wx;
+      lbl.style.left = wx + 'px';
+      lbl.style.top  = (TIMELINE_Y + 14) + 'px';
+      if (y < 0)       lbl.textContent = Math.abs(y).toLocaleString() + ' BCE';
+      else if (y === 0) lbl.textContent = '1 CE';
+      else              lbl.textContent = y >= 1000 ? String(y) : y + ' CE';
+      world.appendChild(lbl);
+    });
+  });
+
+  // Segment title labels (above axis)
+  SEG.forEach(seg => {
+    const midX = (seg.xStart + seg.xEnd) / 2;
+    const lbl = document.createElement('div');
+    lbl.style.position = 'absolute';
+    lbl.style.left = midX + 'px';
+    lbl.style.top = (TIMELINE_Y - 28) + 'px';
+    lbl.style.transform = 'translateX(-50%)';
+    lbl.style.fontFamily = "'ZCOOL KuaiLe', sans-serif";
+    lbl.style.fontSize = '11px';
+    lbl.style.color = 'var(--pink-dark)';
+    lbl.style.opacity = '0.6';
+    lbl.style.letterSpacing = '0.06em';
+    lbl.style.pointerEvents = 'none';
+    lbl.style.whiteSpace = 'nowrap';
+    lbl.textContent = seg.label;
+    world.appendChild(lbl);
+  });
+}
+
+function buildCards() {
+  DATA.forEach((item) => {
+    const wx = yearToWorldX(item.year);
+    const card = document.createElement('div');
+    card.className  = 'art-card';
+    card.dataset.id = item.id;
+
+    const cardWX = wx - 60 + (Math.random() * 20 - 10);
+    const cardWY = item.side === 'top'
+      ? TIMELINE_Y + item.offset - (Math.random() * 15)
+      : TIMELINE_Y + item.offset + (Math.random() * 15);
+
+    cardPositions[item.id] = { x: cardWX, y: cardWY };
+    card.style.left = cardWX + 'px';
+    card.style.top  = cardWY + 'px';
+
+    card.innerHTML = `
+      <div class="card-color-bar" style="background:${item.color}"></div>
+      <span class="card-close" title="收起">×</span>
+      <div class="card-collapsed">
+        <div class="c-period">${item.period||''}</div>
+        <div class="c-title">${item.title}</div>
+        <div class="c-title-en">${item.titleEn||''}</div>
+        ${item.works ? `<div class="c-count">${item.works.length} works</div>` : ''}
+      </div>
+      <div class="card-detail">
+        <div class="d-divider"></div>
+        <div class="d-desc">${item.desc||''}</div>
+        ${item.works ? `<div class="d-works-list">
+          ${item.works.map(w => `<div class="d-work-item" data-work-id="${w.id}" data-period-id="${item.id}">
+            <span class="d-work-name">${w.name}</span>
+            <span class="d-work-artist">${w.artist}</span>
+          </div>`).join('')}
+        </div>` : (item.artists ? `<div class="d-artists">🎨 ${item.artists}</div>` : '')}
+      </div>`;
+
+    world.appendChild(card);
+
+    attachCardEvents(card, item);
+  });
+}
+
+// ─── Draw canvas ─────────────────────────────────────────────────────────────
+function drawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const tsy = timelineScreenY();
+
+  // Draw each of the three segments as its own axis line
+  SEG.forEach((seg, idx) => {
+    const sx0 = worldToScreen(seg.xStart, TIMELINE_Y).x;
+    const sx1 = worldToScreen(seg.xEnd,   TIMELINE_Y).x;
+    if (sx1 < -20 || sx0 > canvas.width + 20) return;
+
+    // Axis line with gradient fade at ends
+    const grad = ctx.createLinearGradient(sx0, 0, sx1, 0);
+    grad.addColorStop(0,   'rgba(232,116,156,0.1)');
+    grad.addColorStop(0.05,'rgba(232,116,156,0.85)');
+    grad.addColorStop(0.95,'rgba(232,116,156,0.85)');
+    grad.addColorStop(1,   'rgba(232,116,156,0.1)');
+    ctx.beginPath(); ctx.moveTo(sx0, tsy); ctx.lineTo(sx1, tsy);
+    ctx.strokeStyle = grad; ctx.lineWidth = 2.5; ctx.stroke();
+
+    // Arrowhead at right end of each segment
+    ctx.beginPath();
+    ctx.moveTo(sx1, tsy);
+    ctx.lineTo(sx1 - 11, tsy - 5);
+    ctx.lineTo(sx1 - 11, tsy + 5);
+    ctx.closePath(); ctx.fillStyle = 'rgba(232,116,156,0.75)'; ctx.fill();
+  });
+
+  // Draw break/ellipsis symbols between segments
+  for (let i = 0; i < SEG.length - 1; i++) {
+    const gapX0 = worldToScreen(SEG[i].xEnd   + 30, TIMELINE_Y).x;
+    const gapX1 = worldToScreen(SEG[i+1].xStart - 30, TIMELINE_Y).x;
+    const gapMid = (gapX0 + gapX1) / 2;
+    if (gapMid < -50 || gapMid > canvas.width + 50) continue;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232,116,156,0.5)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(gapX0, tsy); ctx.lineTo(gapX1, tsy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // « » break marks
+    ctx.fillStyle = 'rgba(232,116,156,0.7)';
+    ctx.font = 'bold 18px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('/ /', gapMid, tsy);
+    ctx.restore();
+  }
+
+  // Tick marks for each segment
+  const ticksBySeg = [
+    [-25000,-15000,-10000,-5000,-3000,-2000,-1500,-1000,-500],
+    [-500,-300,0,300,500,700,900,1100,1300,1400],
+    [1400,1450,1500,1550,1600,1650,1700,1750,1800,1850,1900,1950,2000,2015]
+  ];
+  ticksBySeg.forEach(ticks => {
+    ticks.forEach(y => {
+      const sx = worldToScreen(yearToWorldX(y), TIMELINE_Y).x;
+      if (sx < -10 || sx > canvas.width + 10) return;
+      ctx.beginPath(); ctx.moveTo(sx, tsy - 6); ctx.lineTo(sx, tsy + 6);
+      ctx.strokeStyle = 'rgba(232,116,156,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    });
+  });
+
+  // Connector lines + dots
+  DATA.forEach(item => {
+    const pos = cardPositions[item.id];
+    if (!pos) return;
+
+    const nodeX = worldToScreen(yearToWorldX(item.year), TIMELINE_Y).x;
+    const nodeY = tsy; // always pinned
+
+    const cardEl = document.querySelector(`.art-card[data-id="${item.id}"]`);
+    const cardH = cardEl ? cardEl.offsetHeight / scale : 55;
+    const cardW = cardEl ? cardEl.offsetWidth  / scale : 60;
+
+    const connectS = worldToScreen(
+      pos.x + cardW / 2,
+      item.side === 'top' ? pos.y + cardH : pos.y
+    );
+
+    ctx.beginPath(); ctx.moveTo(nodeX, nodeY);
+    const midY = (nodeY + connectS.y) / 2;
+    ctx.bezierCurveTo(nodeX, midY, connectS.x, midY, connectS.x, connectS.y);
+    ctx.strokeStyle = hexToRgba(item.color, 0.65);
+    ctx.lineWidth = 1.5; ctx.setLineDash([]); ctx.stroke();
+
+    // Node dot (outline style)
+    ctx.beginPath(); ctx.arc(nodeX, nodeY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff9fb'; ctx.fill();
+    ctx.beginPath(); ctx.arc(nodeX, nodeY, 5, 0, Math.PI * 2);
+    ctx.strokeStyle = item.color; ctx.lineWidth = 2; ctx.stroke();
+
+    // Card anchor dot
+    ctx.beginPath(); ctx.arc(connectS.x, connectS.y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = hexToRgba(item.color, 0.6); ctx.fill();
+  });
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ─── Apply transform ──────────────────────────────────────────────────────────
+// Cards are in world coords inside #world.
+// Timeline world Y = TIMELINE_Y must map to screen Y = timelineScreenY().
+// So world's Y offset = timelineScreenY() - TIMELINE_Y * scale
+function applyTransform() {
+  const wy = timelineScreenY() - TIMELINE_Y * scale;
+  world.style.transform = `translate(${panX}px, ${wy}px) scale(${scale})`;
+  world.style.transformOrigin = '0 0';
+  drawCanvas();
+  document.getElementById('zoom-label').textContent = Math.round(scale * 100) + '%';
+}
+
+function clampPan() {
+  const vw = window.innerWidth;
+  panX = Math.max(-(TOTAL_W * scale - vw + 100), Math.min(150, panX));
+}
+
+// ─── Zoom ─────────────────────────────────────────────────────────────────────
+function zoomAt(cx, newScale) {
+  const wx = (cx - panX) / scale;
+  scale = Math.max(SCALE_MIN, Math.min(SCALE_MAX, newScale));
+  panX = cx - wx * scale;
+  clampPan(); applyTransform();
+}
+
+document.getElementById('zoom-in').addEventListener('click',  () => zoomAt(window.innerWidth / 2, scale + SCALE_STEP));
+document.getElementById('zoom-out').addEventListener('click', () => zoomAt(window.innerWidth / 2, scale - SCALE_STEP));
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+const searchInput = document.getElementById('search-input');
+const searchClear = document.getElementById('search-clear');
+const searchCount = document.getElementById('search-count');
+
+function doSearch(query) {
+  const q = query.trim().toLowerCase();
+  searchClear.style.display = q ? 'block' : 'none';
+  if (!q) {
+    document.querySelectorAll('.art-card').forEach(c => c.classList.remove('search-match', 'search-dim'));
+    searchCount.style.display = 'none'; return;
+  }
+  let matchCount = 0, firstMatch = null;
+  document.querySelectorAll('.art-card').forEach(card => {
+    const item = DATA.find(d => d.id === card.dataset.id);
+    if (!item) return;
+    const text = [item.title, item.titleEn, item.artists, item.desc, item.period].join(' ').toLowerCase();
+    const matches = text.includes(q);
+    card.classList.toggle('search-match', matches);
+    card.classList.toggle('search-dim', !matches);
+    if (matches) { matchCount++; if (!firstMatch) firstMatch = item.id; }
+  });
+  searchCount.textContent = `${matchCount} 个结果`;
+  searchCount.style.display = matchCount > 0 ? 'inline-block' : 'none';
+  if (firstMatch) {
+    const pos = cardPositions[firstMatch];
+    if (pos) { panX = window.innerWidth / 2 - (pos.x + 60) * scale; clampPan(); applyTransform(); }
+  }
+}
+
+searchInput.addEventListener('input', (e) => doSearch(e.target.value));
+searchClear.addEventListener('click', () => { searchInput.value = ''; doSearch(''); searchInput.focus(); });
+
+// ─── Mouse ────────────────────────────────────────────────────────────────────
+document.addEventListener('mousedown', (e) => {
+  if (e.target.closest('.art-card') || e.target.closest('#search-bar') || e.target.closest('#zoom-controls')) return;
+  isPanning = true; panStartX = e.clientX; panOriginX = panX;
+  document.body.classList.add('panning');
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (draggingCard) {
+    const card = document.querySelector(`.art-card[data-id="${draggingCard}"]`);
+    if (card) {
+      const newWX = (e.clientX - dragOffset.x - panX) / scale;
+      const newWY = screenToWorld(0, e.clientY - dragOffset.y).y;
+      cardPositions[draggingCard] = { x: newWX, y: newWY };
+      card.style.left = newWX + 'px'; card.style.top = newWY + 'px';
+      drawCanvas();
+    }
+    return;
+  }
+  if (isPanning) { panX = panOriginX + (e.clientX - panStartX); clampPan(); applyTransform(); }
+});
+
+document.addEventListener('mouseup', () => {
+  if (draggingCard) {
+    document.querySelector(`.art-card[data-id="${draggingCard}"]`)?.classList.remove('dragging');
+    draggingCard = null;
+  }
+  isPanning = false; document.body.classList.remove('panning');
+});
+
+document.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    zoomAt(e.clientX, scale * (1 - e.deltaY * 0.005));
+  } else {
+    panX -= e.deltaX * 1.2; clampPan(); applyTransform();
+  }
+}, { passive: false });
+
+// ─── Touch ────────────────────────────────────────────────────────────────────
+let lastTouchDist = null;
+
+document.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    return;
+  }
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY)?.closest('.art-card');
+  if (el) {
+    draggingCard = el.dataset.id;
+    const rect = el.getBoundingClientRect();
+    dragOffset.x = t.clientX - rect.left; dragOffset.y = t.clientY - rect.top;
+    el.classList.add('dragging');
+  } else { isPanning = true; panStartX = t.clientX; panOriginX = panX; }
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 2 && lastTouchDist !== null) {
+    const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    zoomAt((e.touches[0].clientX + e.touches[1].clientX) / 2, scale * (dist / lastTouchDist));
+    lastTouchDist = dist; return;
+  }
+  const t = e.touches[0];
+  if (draggingCard) {
+    const card = document.querySelector(`.art-card[data-id="${draggingCard}"]`);
+    if (card) {
+      const newWX = (t.clientX - dragOffset.x - panX) / scale;
+      const newWY = screenToWorld(0, t.clientY - dragOffset.y).y;
+      cardPositions[draggingCard] = { x: newWX, y: newWY };
+      card.style.left = newWX + 'px'; card.style.top = newWY + 'px'; drawCanvas();
+    }
+  } else if (isPanning) { panX = panOriginX + (t.clientX - panStartX); clampPan(); applyTransform(); }
+}, { passive: false });
+
+document.addEventListener('touchend', (e) => {
+  if (e.touches.length < 2) lastTouchDist = null;
+  if (draggingCard) { document.querySelector(`.art-card[data-id="${draggingCard}"]`)?.classList.remove('dragging'); draggingCard = null; }
+  isPanning = false;
+});
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  clampPan(); applyTransform();
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  loadData();
+  buildTimeline(); buildCards();
+  panX = -60; scale = 1;
+  applyTransform();
+}
+
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'art-timeline-v1';
+function loadData() {
+  try {
+    const s = localStorage.getItem(STORAGE_KEY);
+    if (s) { const p = JSON.parse(s); if (Array.isArray(p) && p.length) { DATA.length=0; p.forEach(d=>DATA.push(d)); } }
+  } catch(e) {}
+}
+function saveData() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); } catch(e) {} }
+
+// ─── Palette ──────────────────────────────────────────────────────────────────
+const PALETTE = ['#e8749c','#c47ab8','#e05a8a','#f4a7c0','#b87dca','#e8374a','#d4688e','#7ab8e8','#f0a050','#8ab4e8','#a87ed4','#6ab4d8','#e87a60','#60c8a0','#f0c040'];
+let selectedColor = PALETTE[0];
+let editingId = null;
+
+function buildSwatches() {
+  const c = document.getElementById('color-swatches'); c.innerHTML = '';
+  PALETTE.forEach(col => {
+    const s = document.createElement('div');
+    s.className = 'swatch' + (col === selectedColor ? ' selected' : '');
+    s.style.background = col;
+    s.addEventListener('click', () => { selectedColor=col; c.querySelectorAll('.swatch').forEach(x=>x.classList.remove('selected')); s.classList.add('selected'); });
+    c.appendChild(s);
+  });
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+const overlay = document.getElementById('modal-overlay');
+function openModal(item=null) {
+  editingId = item ? item.id : null;
+  document.getElementById('modal-title').textContent = item ? '编辑流派' : '添加流派';
+  document.getElementById('f-title').value   = item?.title   || '';
+  document.getElementById('f-titleEn').value = item?.titleEn || '';
+  document.getElementById('f-year').value    = item?.year    || '';
+  document.getElementById('f-period').value  = item?.period  || '';
+  document.getElementById('f-desc').value    = item?.desc    || '';
+  document.getElementById('f-artists').value = item?.artists || '';
+  document.getElementById('f-side').value    = item?.side    || 'top';
+  selectedColor = item?.color || PALETTE[0];
+  buildSwatches();
+  overlay.classList.add('open');
+  setTimeout(() => document.getElementById('f-title').focus(), 50);
+}
+function closeModal() { overlay.classList.remove('open'); }
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-cancel').addEventListener('click', closeModal);
+overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+document.getElementById('modal-save').addEventListener('click', () => {
+  const title   = document.getElementById('f-title').value.trim();
+  const titleEn = document.getElementById('f-titleEn').value.trim();
+  const year    = parseInt(document.getElementById('f-year').value);
+  const period  = document.getElementById('f-period').value.trim();
+  const desc    = document.getElementById('f-desc').value.trim();
+  const artists = document.getElementById('f-artists').value.trim();
+  const side    = document.getElementById('f-side').value;
+  const fi = document.getElementById('f-title'), fy = document.getElementById('f-year');
+  fi.style.borderColor = ''; fy.style.borderColor = '';
+  if (!title) { fi.style.borderColor='#e8374a'; fi.focus(); return; }
+  if (!year || isNaN(year)) { fy.style.borderColor='#e8374a'; fy.focus(); return; }
+
+  if (editingId) {
+    const idx = DATA.findIndex(d => d.id === editingId);
+    if (idx !== -1) {
+      DATA[idx] = { ...DATA[idx], title, titleEn, year, period, desc, artists, color: selectedColor, side };
+      document.querySelector('.art-card[data-id="'+editingId+'"]')?.remove();
+      buildSingleCard(DATA[idx]);
+    }
+  } else {
+    const id = 'c' + Date.now();
+    const newItem = { id, year, label: String(year), title, titleEn, period, desc, artists, color: selectedColor, side, offset: side==='top' ? -165 : 165 };
+    DATA.push(newItem);
+    DATA.sort((a,b) => a.year - b.year);
+    buildSingleCard(newItem);
+  }
+  saveData(); drawCanvas(); closeModal();
+});
+
+// ─── Single card builder ──────────────────────────────────────────────────────
+function buildSingleCard(item) {
+  const wx = yearToWorldX(item.year);
+  const card = document.createElement('div');
+  card.className = 'art-card'; card.dataset.id = item.id;
+  const cx = cardPositions[item.id]?.x ?? (wx - 60);
+  const cy = cardPositions[item.id]?.y ?? (TIMELINE_Y + item.offset);
+  cardPositions[item.id] = { x: cx, y: cy };
+  card.style.left = cx + 'px'; card.style.top = cy + 'px';
+  card.innerHTML = `
+    <div class="card-color-bar" style="background:${item.color}"></div>
+    <span class="card-close" title="收起">×</span>
+    <div class="card-collapsed">
+      <div class="c-period">${item.period||''}</div>
+      <div class="c-title">${item.title}</div>
+      <div class="c-title-en">${item.titleEn||''}</div>
+      ${item.works ? `<div class="c-count">${item.works.length} works</div>` : ''}
+    </div>
+    <div class="card-detail">
+      <div class="d-divider"></div>
+      <div class="d-desc">${item.desc||''}</div>
+      ${item.works ? `<div class="d-works-list">
+        ${item.works.map(w => `<div class="d-work-item" data-work-id="${w.id}" data-period-id="${item.id}">
+          <span class="d-work-name">${w.name}</span>
+          <span class="d-work-artist">${w.artist}</span>
+        </div>`).join('')}
+      </div>` : (item.artists ? `<div class="d-artists">🎨 ${item.artists||''}</div>` : '')}
+    </div>`;
+  world.appendChild(card);
+  attachCardEvents(card, item);
+}
+
+// ─── Context menu ─────────────────────────────────────────────────────────────
+const ctxMenu = document.getElementById('ctx-menu');
+let ctxTargetId = null;
+function showCtxMenu(x, y, id) {
+  ctxTargetId = id;
+  ctxMenu.style.left = Math.min(x, window.innerWidth-130) + 'px';
+  ctxMenu.style.top  = Math.min(y, window.innerHeight-90) + 'px';
+  ctxMenu.style.display = 'block';
+}
+function hideCtxMenu() { ctxMenu.style.display='none'; ctxTargetId=null; }
+document.addEventListener('click', e => { if (!e.target.closest('#ctx-menu')) hideCtxMenu(); });
+
+document.getElementById('ctx-edit').addEventListener('click', () => {
+  const item = DATA.find(d => d.id === ctxTargetId);
+  if (item) openModal(item);
+  hideCtxMenu();
+});
+document.getElementById('ctx-delete').addEventListener('click', () => {
+  const id = ctxTargetId; hideCtxMenu();
+  if (!id) return;
+  const idx = DATA.findIndex(d => d.id === id);
+  if (idx !== -1) DATA.splice(idx, 1);
+  delete cardPositions[id];
+  document.querySelector('.art-card[data-id="'+id+'"]')?.remove();
+  saveData(); drawCanvas();
+});
+
+// ─── Card event attachment ────────────────────────────────────────────────────
+function attachCardEvents(card, item) {
+  let didDrag = false, longPressTimer = null;
+  card.addEventListener('mousedown', e => {
+    e.stopPropagation(); didDrag = false; draggingCard = item.id;
+    const r = card.getBoundingClientRect();
+    dragOffset.x = e.clientX - r.left; dragOffset.y = e.clientY - r.top;
+    card.classList.add('dragging');
+  });
+  card.addEventListener('mousemove', () => { didDrag = true; });
+  card.addEventListener('contextmenu', e => { e.preventDefault(); showCtxMenu(e.clientX, e.clientY, item.id); });
+  card.addEventListener('mouseup', e => {
+    card.classList.remove('dragging'); draggingCard = null;
+    if (didDrag || e.button === 2) return;
+    if (e.target.classList.contains('card-close')) {
+      card.classList.remove('expanded'); expandedCard = null; setTimeout(drawCanvas,360); return;
+    }
+    const isExp = card.classList.contains('expanded');
+    if (expandedCard && expandedCard !== card) expandedCard.classList.remove('expanded');
+    card.classList.toggle('expanded', !isExp);
+    expandedCard = isExp ? null : card;
+    setTimeout(drawCanvas, 360);
+  });
+  let touchMoved = false;
+  card.addEventListener('touchstart', e => {
+    touchMoved = false; draggingCard = item.id;
+    const t = e.touches[0]; const r = card.getBoundingClientRect();
+    dragOffset.x = t.clientX - r.left; dragOffset.y = t.clientY - r.top;
+    card.classList.add('dragging');
+    longPressTimer = setTimeout(() => { if (!touchMoved) showCtxMenu(t.clientX, t.clientY, item.id); }, 600);
+  }, { passive: true });
+  card.addEventListener('touchmove', () => { touchMoved = true; clearTimeout(longPressTimer); }, { passive: true });
+  card.addEventListener('touchend', e => {
+    clearTimeout(longPressTimer);
+    card.classList.remove('dragging'); draggingCard = null;
+    if (touchMoved) return;
+    if (e.target.classList.contains('card-close')) {
+      card.classList.remove('expanded'); expandedCard = null; setTimeout(drawCanvas,360); return;
+    }
+    const isExp = card.classList.contains('expanded');
+    if (expandedCard && expandedCard !== card) expandedCard.classList.remove('expanded');
+    card.classList.toggle('expanded', !isExp);
+    expandedCard = isExp ? null : card;
+    setTimeout(drawCanvas, 360);
+  });
+}
+
+document.getElementById('add-btn').addEventListener('click', () => openModal(null));
+
+
+// ─── Wikipedia image loader (JSONP — bypasses CORS in iframe) ────────────────
+function loadWikiImage(workName, artistName) {
+  const imgEl      = document.getElementById('wp-img');
+  const placeholder= document.getElementById('wp-img-placeholder');
+  const credit     = document.getElementById('wp-img-credit');
+
+  imgEl.style.display = 'none';
+  imgEl.src = '';
+  placeholder.style.display = 'flex';
+  placeholder.textContent = '🔍 searching…';
+  credit.textContent = '';
+
+  const query = workName + (artistName && artistName !== 'Unknown' ? ' ' + artistName : '');
+  const cbName = '_wikiCb_' + Date.now();
+
+  // Clean up any previous JSONP script
+  document.querySelectorAll('script[data-wiki-jsonp]').forEach(s => s.remove());
+
+  // Step 1: search via JSONP
+  window[cbName] = function(data) {
+    delete window[cbName];
+    const hits = data.query && data.query.search;
+    if (!hits || hits.length === 0) { placeholder.textContent = 'No image found'; return; }
+
+    const pageTitle = hits[0].title;
+    const cb2 = '_wikiCb2_' + Date.now();
+
+    window[cb2] = function(d2) {
+      delete window[cb2];
+      const pages = d2.query && d2.query.pages;
+      const page  = pages ? Object.values(pages)[0] : null;
+      const thumb = page && page.thumbnail && page.thumbnail.source;
+      if (thumb) {
+        imgEl.onload = () => {
+          placeholder.style.display = 'none';
+          imgEl.style.display = 'block';
+          credit.textContent = 'via Wikipedia · ' + pageTitle;
+        };
+        imgEl.onerror = () => { placeholder.textContent = 'Image unavailable'; };
+        imgEl.src = thumb;
+      } else {
+        placeholder.textContent = 'No image found';
+      }
+    };
+
+    const s2 = document.createElement('script');
+    s2.setAttribute('data-wiki-jsonp', '1');
+    s2.src = 'https://en.wikipedia.org/w/api.php?action=query&titles='
+      + encodeURIComponent(pageTitle)
+      + '&prop=pageimages&pithumbsize=600&format=json&callback=' + cb2;
+    document.head.appendChild(s2);
+    s2.onerror = () => { placeholder.textContent = 'Image unavailable'; };
+  };
+
+  const s1 = document.createElement('script');
+  s1.setAttribute('data-wiki-jsonp', '1');
+  s1.src = 'https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch='
+    + encodeURIComponent(query)
+    + '&format=json&srlimit=3&callback=' + cbName;
+  document.head.appendChild(s1);
+  s1.onerror = () => { placeholder.textContent = 'Image unavailable'; };
+}
+
+// ─── Work detail popup ────────────────────────────────────────────────────────
+const workPopup = document.getElementById('work-popup');
+document.getElementById('work-popup-close').addEventListener('click', () => workPopup.classList.remove('open'));
+workPopup.addEventListener('click', e => { if (e.target === workPopup) workPopup.classList.remove('open'); });
+
+document.addEventListener('click', e => {
+  const item = e.target.closest('.d-work-item');
+  if (!item) return;
+  e.stopPropagation();
+  const workId    = item.dataset.workId;
+  const periodId  = item.dataset.periodId;
+  const period    = DATA.find(d => d.id === periodId);
+  const work      = period?.works?.find(w => w.id === workId);
+  if (!work) return;
+
+  document.getElementById('wp-tag').textContent    = period.titleEn || period.title;
+  document.getElementById('wp-tag').style.background = period.color;
+  document.getElementById('wp-title').textContent  = work.name;
+  document.getElementById('wp-artist').textContent = work.artist;
+  document.getElementById('wp-date').textContent   = work.date;
+  document.getElementById('wp-medium').textContent = work.medium;
+  // Render notes with **bold** markdown support
+  const notesEl = document.getElementById('wp-notes');
+  notesEl.innerHTML = (work.notes || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const locEl = document.getElementById('wp-location');
+  if (work.location) { locEl.textContent = '📍 ' + work.location; locEl.style.display = 'block'; }
+  else { locEl.style.display = 'none'; }
+  // Smarthistory link
+  const shBtn = document.getElementById('wp-smarthistory-btn');
+  if (work.smarthistoryUrl) {
+    shBtn.href = work.smarthistoryUrl;
+    shBtn.style.display = 'inline-flex';
+  } else {
+    shBtn.style.display = 'none';
+  }
+  workPopup.classList.add('open');
+  loadWikiImage(work.name, work.artist);
+});
+
+
+document.fonts.ready.then(init);</script>
+</body>
+</html>
